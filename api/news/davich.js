@@ -1,28 +1,96 @@
-module.exports = function handler(req, res) {
+ï»¿function stripHtml(value) {
+  if (!value) return "";
+  return String(value)
+    .replace(/<[^>]*>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+function fallbackItems() {
+  const now = new Date().toISOString();
+  return [
+    {
+      title: "ë‹¤ë¹„ì¹˜ì•ˆê²½ ê³µì‹ ì‚¬ì´íŠ¸",
+      summary: "ë‰´ìŠ¤ API í‚¤ê°€ ì—†ê±°ë‚˜ í˜¸ì¶œì´ ì‹¤íŒ¨í•´ ê¸°ë³¸ ë§í¬ë¥¼ í‘œì‹œí•©ë‹ˆë‹¤.",
+      url: "https://www.davich.com/",
+      publisher: "Davich",
+      published_at: now,
+    },
+    {
+      title: "ë‹¤ë¹„ì¹˜ë§ˆì¼“",
+      summary: "ìµœì‹  ì†Œì‹ì€ ë‹¤ë¹„ì¹˜ë§ˆì¼“ ê³µì‹ í˜ì´ì§€ì—ì„œ í™•ì¸í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.",
+      url: "https://www.davichmarket.com/",
+      publisher: "Davich Market",
+      published_at: now,
+    },
+    {
+      title: "ê¸°ì—… ì†Œê°œ",
+      summary: "ê¸°ì—… ë° ë¸Œëœë“œ ì†Œê°œ í˜ì´ì§€ì…ë‹ˆë‹¤.",
+      url: "https://davich.com/about/information",
+      publisher: "Davich",
+      published_at: now,
+    },
+  ];
+}
+
+module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).json({
-    items: [
-      {
-        title: "´ÙºñÄ¡¾È°æ °ø½Ä »çÀÌÆ®",
-        summary: "ÇöÀç ´º½º API°¡ ¹Ì¿¬µ¿ »óÅÂ¿©¼­ °ø½Ä »çÀÌÆ® ¸µÅ©¸¦ Á¦°øÇÕ´Ï´Ù.",
-        url: "https://www.davich.com/",
-        publisher: "Davich",
-        published_at: new Date().toISOString()
-      },
-      {
-        title: "´ÙºñÄ¡¸¶ÄÏ",
-        summary: "¾Û/»óÇ° °ü·Ã ÃÖ½Å Á¤º¸´Â ´ÙºñÄ¡¸¶ÄÏ¿¡¼­ È®ÀÎÇÒ ¼ö ÀÖ½À´Ï´Ù.",
-        url: "https://www.davichmarket.com/",
-        publisher: "Davich Market",
-        published_at: new Date().toISOString()
-      },
-      {
-        title: "±â¾÷ ¼Ò°³",
-        summary: "±â¾÷ ¹× ºê·£µå ¼Ò°³ ÆäÀÌÁöÀÔ´Ï´Ù.",
-        url: "https://davich.com/about/information",
-        publisher: "Davich",
-        published_at: new Date().toISOString()
-      }
-    ]
+
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    res.status(200).json({ items: fallbackItems(), source: "fallback", reason: "missing_env" });
+    return;
+  }
+
+  const params = new URLSearchParams({
+    query: "ë‹¤ë¹„ì¹˜ì•ˆê²½",
+    display: "10",
+    start: "1",
+    sort: "date",
   });
+
+  try {
+    const response = await fetch(`https://openapi.naver.com/v1/search/news.json?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "X-Naver-Client-Id": clientId,
+        "X-Naver-Client-Secret": clientSecret,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`naver_status_${response.status}`);
+    }
+
+    const payload = await response.json();
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+
+    const items = rawItems.slice(0, 3).map((item) => ({
+      title: stripHtml(item.title) || "ì œëª© ì—†ìŒ",
+      summary: stripHtml(item.description) || "ìš”ì•½ ì •ë³´ê°€ ì—†ìŠµë‹ˆë‹¤.",
+      url: item.originallink || item.link || "https://www.davich.com/",
+      publisher: "Naver News",
+      published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
+    }));
+
+    if (items.length === 0) {
+      res.status(200).json({ items: fallbackItems(), source: "fallback", reason: "empty_items" });
+      return;
+    }
+
+    res.status(200).json({ items, source: "naver" });
+  } catch (error) {
+    res.status(200).json({
+      items: fallbackItems(),
+      source: "fallback",
+      reason: "request_failed",
+      error: String(error && error.message ? error.message : error),
+    });
+  }
 };
