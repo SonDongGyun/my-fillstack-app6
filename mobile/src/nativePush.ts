@@ -14,6 +14,8 @@ let pushRuntime: PushRuntime = { enabled: false, token: null, reason: "not_initi
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -108,3 +110,5 @@ export async function stopReminderPush(): Promise<{ ok: boolean; reason?: string
     return { ok: false, reason: String((error as Error)?.message || error) };
   }
 }
+
+

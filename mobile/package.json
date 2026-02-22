@@ -11,20 +11,20 @@
     "test:unit": "node --import tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
-    "expo": "~52.0.0",
-    "expo-asset": "~11.0.5",
-    "expo-camera": "~16.0.18",
-    "expo-device": "~7.0.3",
+    "expo": "~54.0.33",
+    "expo-asset": "~12.0.12",
+    "expo-camera": "~17.0.10",
+    "expo-device": "~8.0.10",
     "expo-face-detector": "~13.0.2",
-    "expo-notifications": "~0.29.14",
-    "expo-status-bar": "~1.12.1",
-    "react": "18.2.0",
-    "react-native": "0.76.3",
-    "react-native-webview": "13.12.4"
+    "expo-notifications": "~0.32.16",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-webview": "13.15.0"
   },
   "devDependencies": {
-    "@types/react": "~18.2.79",
+    "@types/react": "~19.1.10",
     "tsx": "^4.21.0",
-    "typescript": "~5.3.3"
+    "typescript": "~5.9.2"
   }
 }
