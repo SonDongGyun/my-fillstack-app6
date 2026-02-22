@@ -3,6 +3,7 @@
   const timerManager = (window.TimerManager && typeof window.TimerManager.createTimerManager === "function")
     ? window.TimerManager.createTimerManager()
     : null;
+  const IS_NATIVE_WEBVIEW = typeof window !== "undefined" && window.__NATIVE_SOURCE__ === "react-native-webview";
 
   const state = {
     countdownTimer: null,
@@ -12,6 +13,17 @@
     homeAutoStartedOnce: false,
     pushCapable: false,
   };
+
+  function postNative(message){
+    if (!IS_NATIVE_WEBVIEW) return false;
+    if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== "function") return false;
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   function setUi(event){
     if (typeof logic.reducePushUiState === "function") {
@@ -120,9 +132,13 @@
     const silent = !!(options && options.silent);
     try {
       clearCountdown();
-      try {
-        await fetch("/api/push/stop", { method: "POST", headers: { "Content-Type": "application/json" } });
-      } catch (_) {}
+      if (IS_NATIVE_WEBVIEW) {
+        postNative({ type: "NATIVE_PUSH_STOP" });
+      } else {
+        try {
+          await fetch("/api/push/stop", { method: "POST", headers: { "Content-Type": "application/json" } });
+        } catch (_) {}
+      }
       setUi("stopped");
       updateRuleButtons();
       if (!silent) renderStatus();
@@ -136,8 +152,18 @@
     try {
       setUi("start_pending");
       renderStatus();
-      await ensurePushSubscription();
       const sec = Math.max(1, Math.round(intervalMs / 1000));
+
+      if (IS_NATIVE_WEBVIEW) {
+        postNative({ type: "NATIVE_PUSH_START", payload: { intervalSeconds: sec } });
+        state.pushCapable = true;
+        setUi("running");
+        updateRuleButtons();
+        startCountdown(sec, null);
+        return;
+      }
+
+      await ensurePushSubscription();
       const res = await fetch("/api/push/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,6 +197,15 @@
   };
 
   window.syncRulePushUi = async function(){
+    if (IS_NATIVE_WEBVIEW) {
+      state.pushCapable = true;
+      state.ui = { active: false, status: "native app push mode" };
+      postNative({ type: "NATIVE_PUSH_SYNC" });
+      updateRuleButtons();
+      renderStatus();
+      return;
+    }
+
     try {
       const res = await fetch("/api/push/public-key", { cache: "no-store" });
       const data = await res.json();
@@ -220,6 +255,10 @@
     if (state.homeAutoStartedOnce) return;
     state.homeAutoStartedOnce = true;
     await window.syncRulePushUi();
+
+    // App mode should not auto-start push schedule on page load.
+    if (IS_NATIVE_WEBVIEW) return;
+
     if (!state.pushCapable) return;
     setTimeout(() => window.startRuleReminder(20 * 60 * 1000), 0);
   }
@@ -229,9 +268,12 @@
   renderStatus();
   window.addEventListener("load", startHomeAutoOnce, { once: true });
   if (document.readyState === "complete") startHomeAutoOnce();
-  window.addEventListener("beforeunload", () => {
-    try {
-      navigator.sendBeacon("/api/push/stop", new Blob([JSON.stringify({})], { type: "application/json" }));
-    } catch (_) {}
-  });
+
+  if (!IS_NATIVE_WEBVIEW) {
+    window.addEventListener("beforeunload", () => {
+      try {
+        navigator.sendBeacon("/api/push/stop", new Blob([JSON.stringify({})], { type: "application/json" }));
+      } catch (_) {}
+    });
+  }
 })();

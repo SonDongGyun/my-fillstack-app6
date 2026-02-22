@@ -5,29 +5,50 @@ import { WebView } from "react-native-webview";
 import type { WebViewMessageEvent } from "react-native-webview";
 import { NativeGazeBridge, type NativeBridgeMessage } from "./src/NativeGazeBridge";
 import { NativeCameraGaze } from "./src/NativeCameraGaze";
+import { ensurePushReady, getPushRuntime, startReminderPush, stopReminderPush } from "./src/nativePush";
 
-// WebView target URL (set EXPO_PUBLIC_WEB_URI to override)
-const WEB_URI =
-  process.env.EXPO_PUBLIC_WEB_URI ||
-  "http://127.0.0.1:5505/index.html";
+const WEB_URI = process.env.EXPO_PUBLIC_WEB_URI || "http://127.0.0.1:5505/index.html";
+
+type NativeWebCommand =
+  | { type: "NATIVE_PUSH_START"; payload?: { intervalSeconds?: number } }
+  | { type: "NATIVE_PUSH_STOP" }
+  | { type: "NATIVE_PUSH_SYNC" };
+
+function parseNativeWebCommand(raw: string): NativeWebCommand | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (parsed.type === "NATIVE_PUSH_START") return parsed;
+    if (parsed.type === "NATIVE_PUSH_STOP") return parsed;
+    if (parsed.type === "NATIVE_PUSH_SYNC") return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const webRef = useRef<WebView>(null);
   const bridge = useMemo(() => new NativeGazeBridge(), []);
-  const [status, setStatus] = useState("native init");
+
+  const [cameraStatus, setCameraStatus] = useState("native init");
+  const [pushStatus, setPushStatus] = useState("push init");
   const sampleAtRef = useRef(0);
 
   useEffect(() => {
     const off = bridge.onFrame((frame) => {
       const msg: NativeBridgeMessage = { type: "NATIVE_GAZE_FRAME", payload: frame };
       webRef.current?.postMessage(JSON.stringify(msg));
-      setStatus(`streaming x:${frame.gazeX.toFixed(2)} y:${frame.gazeY.toFixed(2)}`);
+      setCameraStatus(`streaming x:${frame.gazeX.toFixed(2)} y:${frame.gazeY.toFixed(2)} c:${frame.confidence.toFixed(2)}`);
       sampleAtRef.current = Date.now();
     });
+
     const fallbackTimer = setInterval(() => {
       if (Date.now() - sampleAtRef.current > 3500) {
         bridge.startMockStream();
       }
     }, 1200);
+
     return () => {
       off();
       clearInterval(fallbackTimer);
@@ -35,10 +56,61 @@ export default function App() {
     };
   }, [bridge]);
 
-  const onWebMessage = (event: WebViewMessageEvent) => {
+  useEffect(() => {
+    let mounted = true;
+    ensurePushReady().then((runtime) => {
+      if (!mounted) return;
+      if (runtime.enabled) {
+        const tokenText = runtime.token ? `${runtime.token.slice(0, 16)}...` : "token unavailable";
+        setPushStatus(`native push ready (${tokenText})`);
+      } else {
+        setPushStatus(`native push unavailable (${runtime.reason || "unknown"})`);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onWebMessage = async (event: WebViewMessageEvent) => {
     const raw = event.nativeEvent.data || "";
     if (!raw) return;
-    setStatus(`web msg: ${raw.slice(0, 42)}`);
+
+    const command = parseNativeWebCommand(raw);
+    if (!command) {
+      setPushStatus(`web msg: ${raw.slice(0, 40)}`);
+      return;
+    }
+
+    if (command.type === "NATIVE_PUSH_SYNC") {
+      const runtime = getPushRuntime();
+      if (runtime.enabled) {
+        setPushStatus("native push mode");
+      } else {
+        setPushStatus(`native push unavailable (${runtime.reason || "unknown"})`);
+      }
+      return;
+    }
+
+    if (command.type === "NATIVE_PUSH_START") {
+      const intervalSeconds = command.payload?.intervalSeconds ?? 20 * 60;
+      const started = await startReminderPush(intervalSeconds);
+      if (started.ok) {
+        setPushStatus(`native push running (${intervalSeconds}s)`);
+      } else {
+        setPushStatus(`native push start failed (${started.reason || "unknown"})`);
+      }
+      return;
+    }
+
+    if (command.type === "NATIVE_PUSH_STOP") {
+      const stopped = await stopReminderPush();
+      if (stopped.ok) {
+        setPushStatus("native push stopped");
+      } else {
+        setPushStatus(`native push stop failed (${stopped.reason || "unknown"})`);
+      }
+    }
   };
 
   const injectReady = `
@@ -52,16 +124,19 @@ export default function App() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>my-fullstack-app5 hybrid</Text>
-        <Text style={styles.sub}>{status}</Text>
+        <Text style={styles.sub}>{cameraStatus}</Text>
+        <Text style={styles.sub}>{pushStatus}</Text>
       </View>
+
       <NativeCameraGaze
         active
-        onStatus={setStatus}
+        onStatus={setCameraStatus}
         onSample={(sample) => {
           bridge.stopMockStream();
           bridge.pushSample(sample);
         }}
       />
+
       <WebView
         ref={webRef}
         source={{ uri: WEB_URI }}
@@ -71,6 +146,7 @@ export default function App() {
         injectedJavaScript={injectReady}
         originWhitelist={["*"]}
       />
+
       <StatusBar style="dark" />
     </SafeAreaView>
   );
@@ -84,9 +160,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#cad8f4",
-    backgroundColor: "#ffffff"
+    backgroundColor: "#ffffff",
   },
   title: { fontSize: 15, fontWeight: "700", color: "#214e92" },
-  sub: { marginTop: 3, fontSize: 12, color: "#4e6e99" }
+  sub: { marginTop: 3, fontSize: 12, color: "#4e6e99" },
 });
-

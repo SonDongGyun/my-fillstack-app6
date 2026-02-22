@@ -15,6 +15,7 @@
     "android": {},
     "plugins": [
       "expo-asset",
+      "expo-notifications",
       [
         "expo-camera",
         {
