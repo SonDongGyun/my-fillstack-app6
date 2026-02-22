@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="gFace" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(185 155) rotate(35) scale(320)">
+      <stop offset="0" stop-color="#fff8c8"/>
+      <stop offset="0.62" stop-color="#ffd33f"/>
+      <stop offset="1" stop-color="#f3ad1e"/>
+    </radialGradient>
+    <linearGradient id="gMouth" x1="160" y1="325" x2="352" y2="325" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4b2a12"/>
+      <stop offset="1" stop-color="#3a1f0e"/>
+    </linearGradient>
+    <linearGradient id="gHeart" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6b66"/>
+      <stop offset="1" stop-color="#ef312e"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="202" fill="url(#gFace)"/>
+  <path d="M177 217c9-22 31-22 40 0" stroke="#43260f" stroke-width="16" stroke-linecap="round"/>
+  <path d="M295 217c9-22 31-22 40 0" stroke="#43260f" stroke-width="16" stroke-linecap="round"/>
+  <path d="M164 304c33 47 151 47 184 0" stroke="url(#gMouth)" stroke-width="16" stroke-linecap="round"/>
+  <ellipse cx="196" cy="266" rx="20" ry="12" fill="#ff7a8f" fill-opacity=".3"/>
+  <ellipse cx="316" cy="266" rx="20" ry="12" fill="#ff7a8f" fill-opacity=".3"/>
+  <path d="M355 123c11-19 35-22 49-4 13 16 9 40-10 53l-40 28-38-33c-16-14-18-38-4-53 14-16 37-14 51 3l-8 6z" fill="url(#gHeart)"/>
+  <path d="M111 287c8-14 26-16 37-3 10 12 8 30-7 40l-29 20-27-23c-12-10-14-28-4-39 10-12 28-11 38 2l-8 3z" fill="url(#gHeart)"/>
+  <path d="M366 323c7-13 24-14 34-3 9 10 7 27-6 36l-27 19-24-22c-11-10-12-26-3-36 9-11 25-10 35 1l-9 5z" fill="url(#gHeart)"/>
+  <ellipse cx="147" cy="114" rx="56" ry="27" fill="#fff" fill-opacity=".24"/>
+</svg>

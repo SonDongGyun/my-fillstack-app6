@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+mobile/node_modules/
+
+# expo/react-native
+.expo/
+mobile/.expo/
+
+# environment
+.env
+.env.*
+!.env.example
+mobile/.env
+mobile/.env.*
+!mobile/.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# build artifacts
+dist/
+build/

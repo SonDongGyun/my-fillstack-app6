@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="face" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(190 152) rotate(35) scale(330)">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset="0.58" stop-color="#ffd866"/>
+      <stop offset="1" stop-color="#f0b22b"/>
+    </radialGradient>
+    <radialGradient id="shade" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(336 362) rotate(210) scale(240)">
+      <stop offset="0" stop-color="#000" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="smile" x1="186" y1="318" x2="326" y2="318" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9a5b2d"/>
+      <stop offset="1" stop-color="#7d431a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="236" fill="url(#face)"/>
+  <circle cx="256" cy="256" r="236" fill="url(#shade)"/>
+  <ellipse cx="192" cy="212" rx="54" ry="52" fill="#fff" fill-opacity=".9"/>
+  <ellipse cx="320" cy="212" rx="54" ry="52" fill="#fff" fill-opacity=".9"/>
+  <circle cx="192" cy="214" r="25" fill="#1f2e46"/>
+  <circle cx="320" cy="214" r="25" fill="#1f2e46"/>
+  <circle cx="183" cy="205" r="7" fill="#fff" fill-opacity=".9"/>
+  <circle cx="311" cy="205" r="7" fill="#fff" fill-opacity=".9"/>
+  <ellipse cx="256" cy="265" rx="18" ry="12" fill="#e5a23e"/>
+  <path d="M185 311c23 45 119 45 142 0" stroke="url(#smile)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M198 312c20 32 95 32 116 0" stroke="#f2d8b2" stroke-opacity=".55" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="138" cy="120" rx="66" ry="38" fill="#fff" fill-opacity=".25"/>
+</svg>

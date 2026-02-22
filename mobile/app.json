@@ -1,0 +1,26 @@
+﻿{
+  "expo": {
+    "name": "my-fullstack-app5",
+    "slug": "my-fullstack-app5",
+    "scheme": "myfullstackapp5",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {},
+    "plugins": [
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Camera access is required for gaze tracking exercises."
+        }
+      ]
+    ]
+  }
+}

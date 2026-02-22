@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="gFace" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(185 155) rotate(35) scale(320)">
+      <stop offset="0" stop-color="#fff8c8"/>
+      <stop offset="0.62" stop-color="#ffd33f"/>
+      <stop offset="1" stop-color="#f3ad1e"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="202" fill="url(#gFace)"/>
+  <ellipse cx="147" cy="114" rx="56" ry="27" fill="#fff" fill-opacity=".24"/>
+</svg>

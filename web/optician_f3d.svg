@@ -1,0 +1,54 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 520" role="img" aria-label="여성 안경사 3D 캐릭터">
+  <defs>
+    <radialGradient id="skin" cx="45%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#fff4ec"/>
+      <stop offset="0.72" stop-color="#ffdccd"/>
+      <stop offset="1" stop-color="#efbca0"/>
+    </radialGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e5a84"/>
+      <stop offset="1" stop-color="#503c66"/>
+    </linearGradient>
+    <linearGradient id="coat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eee6ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#8b72c933"/>
+    </filter>
+  </defs>
+
+  <ellipse cx="210" cy="482" rx="104" ry="22" fill="#8c73c933"/>
+
+  <g filter="url(#shadow)">
+    <ellipse cx="210" cy="392" rx="112" ry="82" fill="url(#coat)"/>
+    <rect x="188" y="326" width="44" height="88" rx="18" fill="#eee6ff"/>
+    <path d="M210 338l12 16-12 44-12-44z" fill="#7858d0"/>
+
+    <ellipse cx="210" cy="220" rx="96" ry="106" fill="url(#skin)"/>
+    <ellipse cx="121" cy="236" rx="13" ry="22" fill="#efc3a7"/>
+    <ellipse cx="299" cy="236" rx="13" ry="22" fill="#efc3a7"/>
+
+    <!-- natural feminine hair with bangs -->
+    <path d="M104 220c2-84 44-132 106-132s104 48 106 132c-16-22-30-34-44-34-11 0-20 5-29 13-9 8-19 12-33 12-14 0-24-4-33-12-9-8-18-13-29-13-14 0-28 12-44 34z" fill="url(#hair)"/>
+    <path d="M136 150c16-18 41-28 74-28s58 10 74 28" stroke="#8a72a5" stroke-width="13" stroke-linecap="round" fill="none"/>
+    <path d="M152 166c16-10 36-16 58-16s42 6 58 16" stroke="#5b446f" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M126 244c-12 44-10 104 10 152" stroke="#5b446f" stroke-width="12" stroke-linecap="round" fill="none" opacity=".92"/>
+    <path d="M294 244c12 44 10 104-10 152" stroke="#5b446f" stroke-width="12" stroke-linecap="round" fill="none" opacity=".92"/>
+
+    <rect x="132" y="220" width="74" height="48" rx="19" fill="#ffffffda" stroke="#594678" stroke-width="7"/>
+    <rect x="214" y="220" width="74" height="48" rx="19" fill="#ffffffda" stroke="#594678" stroke-width="7"/>
+    <rect x="206" y="240" width="8" height="6" rx="2" fill="#594678"/>
+
+    <ellipse cx="170" cy="242" rx="9.5" ry="8.5" fill="#2d2343"/>
+    <ellipse cx="250" cy="242" rx="9.5" ry="8.5" fill="#2d2343"/>
+    <circle cx="166" cy="238" r="1.8" fill="#fff"/>
+    <circle cx="246" cy="238" r="1.8" fill="#fff"/>
+
+    <path d="M204 272l-6 15h12z" fill="#e4b798"/>
+    <path d="M194 302c8 6 34 6 42 0" stroke="#8f5b43" stroke-width="4.2" fill="none" stroke-linecap="round"/>
+
+    <ellipse cx="170" cy="286" rx="10" ry="5" fill="#efb2bb" opacity=".42"/>
+    <ellipse cx="250" cy="286" rx="10" ry="5" fill="#efb2bb" opacity=".42"/>
+  </g>
+</svg>
