@@ -10,6 +10,43 @@
     .trim();
 }
 
+function inferPublisher(urlValue) {
+  if (!urlValue) return "Unknown";
+  try {
+    const hostname = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
+    const parts = hostname.split(".").filter(Boolean);
+    if (parts.length === 0) return "Unknown";
+
+    const domainCore = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+    const map = {
+      yna: "연합뉴스",
+      yonhapnews: "연합뉴스",
+      mt: "머니투데이",
+      hankyung: "한국경제",
+      mk: "매일경제",
+      sedaily: "서울경제",
+      fnnews: "파이낸셜뉴스",
+      edaily: "이데일리",
+      kbs: "KBS",
+      mbc: "MBC",
+      sbs: "SBS",
+      jtbc: "JTBC",
+      joongang: "중앙일보",
+      donga: "동아일보",
+      chosun: "조선일보",
+      hani: "한겨레",
+      khan: "경향신문",
+      newsis: "뉴시스",
+      nocutnews: "노컷뉴스",
+      naver: "네이버뉴스",
+    };
+
+    return map[domainCore] || hostname;
+  } catch (_) {
+    return "Unknown";
+  }
+}
+
 function fallbackItems() {
   const now = new Date().toISOString();
   return [
@@ -71,13 +108,16 @@ module.exports = async function handler(req, res) {
     const payload = await response.json();
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
 
-    const items = rawItems.slice(0, 3).map((item) => ({
-      title: stripHtml(item.title) || "제목 없음",
-      summary: stripHtml(item.description) || "요약 정보가 없습니다.",
-      url: item.originallink || item.link || "https://www.davich.com/",
-      publisher: "Naver News",
-      published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
-    }));
+    const items = rawItems.slice(0, 3).map((item) => {
+      const url = item.originallink || item.link || "https://www.davich.com/";
+      return {
+        title: stripHtml(item.title) || "제목 없음",
+        summary: stripHtml(item.description) || "요약 정보가 없습니다.",
+        url,
+        publisher: inferPublisher(item.originallink || item.link),
+        published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
+      };
+    });
 
     if (items.length === 0) {
       res.status(200).json({ items: fallbackItems(), source: "fallback", reason: "empty_items" });
