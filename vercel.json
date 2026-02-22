@@ -6,6 +6,10 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/static/(.*)",
+      "destination": "/web/$1"
+    },
+    {
       "source": "/",
       "destination": "/web/index.html"
     },
