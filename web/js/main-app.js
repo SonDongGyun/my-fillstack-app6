@@ -295,6 +295,7 @@ function toggleRuleOnlyLayout(key){
 function renderGameEvidence(key){if(!evidenceSummaryTitleEl||!evidenceSummaryTextEl)return;const v=evidenceSummaryConfig[key]||{title:"눈운동 근거 쉬운 설명",text:"게임을 선택하면 해당 운동과 관련된 쉬운 설명이 여기 표시됩니다."};evidenceSummaryTitleEl.textContent=v.title;evidenceSummaryTextEl.textContent=v.text;}
 function updateBlinkCornerTime(sec){if(!blinkCornerTimeEl)return;const s=Math.max(0,Math.ceil(sec));blinkCornerTimeEl.textContent=`남은 ${s}초`;}
 function enterGame(key){
+  if(key==="focus")return;
   setCurrentGame(key);
   gameTitleEl.textContent=gameConfig[key].title;
   gameDescEl.textContent=gameConfig[key].desc;
