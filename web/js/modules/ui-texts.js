@@ -6,11 +6,11 @@
   root.UiTexts=factory();
 })(typeof globalThis!=="undefined"?globalThis:window,function(){
   return {
-    gazeDirectionPrefix:"시선 방향",
-    directionSuffix:"방향",
-    statusRecognizing:"인식 중",
-    statusIdle:"대기 중",
-    statusNativeRecognizing:"네이티브 카메라 인식 중",
-    statusNativeLowConfidence:"네이티브 카메라 인식 중(신뢰도 낮음)",
+    gazeDirectionPrefix:"\uC2DC\uC120 \uBC29\uD5A5",
+    directionSuffix:"\uBC29\uD5A5",
+    statusRecognizing:"\uC778\uC2DD \uC911",
+    statusIdle:"\uB300\uAE30 \uC911",
+    statusNativeRecognizing:"\uB124\uC774\uD2F0\uBE0C \uCE74\uBA54\uB77C \uC778\uC2DD \uC911",
+    statusNativeLowConfidence:"\uB124\uC774\uD2F0\uBE0C \uCE74\uBA54\uB77C \uC778\uC2DD \uC911(\uC2E0\uB8B0\uB3C4 \uB0AE\uC74C)",
   };
 });
