@@ -418,6 +418,14 @@
   <p id="evidenceSummaryText">운동을 선택하면 관련 설명이 여기에 표시됩니다.</p>
 </section>
 <div class="notice">이 서비스는 생활 관리용입니다. 진단이나 치료가 필요한 경우 전문의와 상담하세요.</div>
+<div id="cookieConsentBanner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:1800;border:1px solid #cfe3ff;border-radius:14px;background:#fffffff2;box-shadow:0 10px 24px rgba(17,42,74,.18);padding:12px 14px;backdrop-filter:blur(4px);">
+  <div style="font-weight:800;color:#163f7e;font-size:.92rem;">&#xCFE0;&#xD0A4; &#xC0AC;&#xC6A9; &#xC548;&#xB0B4;</div>
+  <div style="margin-top:6px;color:#355985;font-size:.84rem;line-height:1.6;">&#xC6F9;&#xC0AC;&#xC774;&#xD2B8; &#xC0AC;&#xC6A9; &#xACBD;&#xD5D8; &#xAC1C;&#xC120;&#xC744; &#xC704;&#xD574; &#xCFE0;&#xD0A4;&#xB97C; &#xC0AC;&#xC6A9;&#xD569;&#xB2C8;&#xB2E4;. &#xD544;&#xC218; &#xCFE0;&#xD0A4;&#xB294; &#xC0C1;&#xC2DC; &#xC0AC;&#xC6A9;&#xB418;&#xBA70;, &#xC120;&#xD0DD; &#xCFE0;&#xD0A4;&#xB294; &#xB3D9;&#xC758; &#xD6C4; &#xD65C;&#xC131;&#xD654;&#xB429;&#xB2C8;&#xB2E4;.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <button id="cookieAllowAllBtn" type="button" style="border:0;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;background:linear-gradient(120deg,#1459c2,#2e7be8);color:#fff;">&#xBAA8;&#xB4E0; &#xCFE0;&#xD0A4; &#xD5C8;&#xC6A9;</button>
+    <button id="cookieEssentialOnlyBtn" type="button" style="border:1px solid #c7deff;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;background:#eff6ff;color:#1454a8;">&#xD544;&#xC218; &#xCFE0;&#xD0A4;&#xB9CC; &#xC0AC;&#xC6A9;</button>
+  </div>
+</div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -459,11 +467,13 @@
 <script src="/static/js/modules/acuity-ui.js"></script>
 <script src="/static/js/modules/camera-overlay.js"></script>
 <script src="/static/js/modules/direction-feedback.js"></script>
+<script src="/static/js/cookie-consent.js"></script>
 <script src="/static/js/main-app.js"></script>
 <script src="/static/js/docking.js"></script>
 <script src="/static/js/push.js"></script>
 </body>
 </html>
+
 
 
 
