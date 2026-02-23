@@ -10,7 +10,7 @@
 .app{width:min(1040px,100%);border:1px solid var(--line);border-radius:22px;background:#ffffffdb;box-shadow:0 20px 48px #79acee24;backdrop-filter:blur(3px);padding:24px;overflow:visible}
 .header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px;padding:18px 20px;border:1px solid #d8e9ff;border-radius:18px;background:linear-gradient(180deg,#f9fcff 0%,#f1f8ff 100%)}.title{margin:0;color:var(--b900);font-size:1.4rem}.subtitle{margin:6px 0 0;color:var(--muted);font-size:.95rem}.auth-area{display:flex;align-items:center;gap:8px;min-height:40px}.auth-btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #f3d45c;border-radius:999px;background:#fee500;color:#2b2b2b;font-weight:800;font-size:.86rem;padding:8px 14px;text-decoration:none}.auth-user{display:flex;align-items:center;gap:8px}.auth-name{font-size:.84rem;color:#31567f;font-weight:700}.auth-logout{border:1px solid #cfe3ff;border-radius:999px;background:#fff;color:#255a9c;font-size:.8rem;font-weight:700;padding:7px 10px;cursor:pointer}
 .mode-chip{border:1px solid #bfdcff;border-radius:999px;padding:8px 14px;background:var(--b100);color:var(--b900);font-weight:700;font-size:.92rem}
-.view{display:none}.view.active{display:block;animation:fadeUp .28s ease}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.view{display:none}.view.active{display:block;animation:fadeIn .28s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .intro-wrap{border:1px solid var(--line);border-radius:22px;background:radial-gradient(900px 420px at 10% -20%,#fff 0%,#f4f9ff 46%,#ecf5ff 100%);padding:28px;display:grid;gap:24px;grid-template-columns:1.1fr 1fr;align-items:center;position:relative;overflow:hidden}
 .intro-badge{display:inline-block;border:1px solid #cde2ff;border-radius:999px;padding:6px 10px;background:#f4f9ff;color:#2d5f9e;font-size:.82rem;font-weight:700;margin-bottom:8px}
 .intro-title{margin:0;color:#133e7e;font-size:1.72rem;line-height:1.3}.intro-copy{margin:14px 0 0;color:#3f5f88;line-height:1.72;font-size:1rem}
@@ -42,12 +42,12 @@
 .game-grid.acuity-only{grid-template-columns:1fr}
 .blink-corner-time{position:absolute;left:12px;top:12px;padding:6px 10px;border-radius:999px;border:1px solid #c8dcff;background:#ffffffde;color:#1f4f93;font-size:.86rem;font-weight:800;letter-spacing:.01em;box-shadow:0 6px 14px #1f63c61a;pointer-events:none}
 .blink-float{position:absolute;left:72%;top:34%;padding:6px 10px;border-radius:999px;background:#ffffffea;border:1px solid #c8dcff;color:#1459c2;font-weight:800;font-size:1.26rem;line-height:1;white-space:nowrap;word-break:keep-all;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 18px #1f63c624;opacity:0;transform:translate3d(0,0,0) scale(.92);pointer-events:none}
-.blink-float.show{animation:blinkFloatUp .9s cubic-bezier(.2,.8,.2,1) forwards}
+.blink-float.show{animation:blinkFloatIn .9s cubic-bezier(.2,.8,.2,1) forwards}
 .blink-result-flash{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:8px 14px;border-radius:999px;font-size:.9rem;font-weight:800;opacity:0;pointer-events:none;white-space:nowrap}
 .blink-result-flash.show{animation:resultFlash 1.6s cubic-bezier(.2,.8,.2,1) forwards}
 .blink-result-flash.ok{background:#effcf5;border:1px solid #aee6c9;color:#1f7a50;box-shadow:0 8px 16px #1f7a5030}
 .blink-result-flash.warn{background:#fff7ec;border:1px solid #ffd596;color:#9e6700;box-shadow:0 8px 16px #9e670030}
-@keyframes blinkFloatUp{0%{opacity:0;transform:translate3d(0,10px,0) scale(.9)}15%{opacity:1}100%{opacity:0;transform:translate3d(0,-22px,0) scale(1)}}
+@keyframes blinkFloatIn{0%{opacity:0;transform:translate3d(0,10px,0) scale(.9)}15%{opacity:1}100%{opacity:0;transform:translate3d(0,-22px,0) scale(1)}}
 @keyframes resultFlash{0%{opacity:0;transform:translateX(-50%) translateY(8px) scale(.96)}20%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-8px) scale(.98)}}
 .emoji{width:min(320px,66vw);aspect-ratio:1;border-radius:50%;position:relative;border:4px solid #e89b00;background:radial-gradient(circle at 35% 24%,#fff4c4,#ffd958 56%,#f5ba17 100%);box-shadow:inset 0 -12px 24px #d1930028;transition:background .2s ease,border-color .2s ease}.eyes{position:absolute;top:37%;width:100%;display:flex;justify-content:center;gap:18%}.eye{width:17%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffffff 0%,#f2f7ff 72%,#d5e3ff 100%);border:1px solid #d0dcf1;position:relative;overflow:hidden;transform:scaleY(1);transform-origin:center;transition:transform .18s cubic-bezier(.22,.61,.36,1),border-radius .18s ease,background .2s ease}.eye.closed{transform:scaleY(.13);border-radius:999px;background:#273447;border-color:transparent}.pupil{display:block;position:absolute;left:50%;top:50%;width:44%;height:44%;border-radius:50%;background:radial-gradient(circle at 38% 35%,#2d4c87 0%,#1b315f 52%,#0d1b36 100%);box-shadow:inset 0 0 0 1px #5c79ae,0 1px 2px #00000022;transform:translate(-50%, -50%);transition:transform .14s cubic-bezier(.2,.8,.2,1),opacity .15s ease}.pupil::after{content:"";position:absolute;left:26%;top:22%;width:22%;height:22%;border-radius:50%;background:#ffffffd9}.eye.closed .pupil{opacity:0}
 .rest-gif{display:block;width:min(92%,520px);aspect-ratio:16/9;object-fit:cover;border-radius:18px;border:1px solid #cde0fb;box-shadow:0 16px 32px #4f80bd2a}
@@ -173,14 +173,14 @@
 <main class="app">
 <section class="header">
   <div>
-    <h1 class="title">Eye Health Keeper</h1>
-    <p class="subtitle">Train, rest, and track your eye routine in one place.</p>
+    <h1 class="title">눈건강 시력지킴이</h1>
+    <p class="subtitle">눈 운동과 휴식 루틴을 한 곳에서 관리하세요.</p>
   </div>
   <div class="auth-area">
-    <a id="kakaoLoginBtn" class="auth-btn hidden" href="/auth/kakao/login">Login with Kakao</a>
+    <a id="kakaoLoginBtn" class="auth-btn hidden" href="/auth/kakao/login">카카오로 로그인</a>
     <div id="authUserBox" class="auth-user hidden">
       <span id="authNickname" class="auth-name"></span>
-      <button id="logoutBtn" class="auth-logout" type="button">Logout</button>
+      <button id="logoutBtn" class="auth-logout" type="button">로그아웃</button>
     </div>
   </div>
 </section>
@@ -188,39 +188,39 @@
 <section id="introView" class="view active">
   <div id="hero" class="intro-wrap reveal hero-pin" data-stage="1">
     <article>
-      <span class="intro-badge scroll-fade">EYE HEALTH APP</span>
-      <h2 class="intro-title">Reduce daily eye strain<br />with short guided routines</h2>
-      <p class="intro-copy">Camera-based eye exercises and 20-20-20 reminders help you build healthier screen habits.</p>
+      <span class="intro-badge scroll-fade">눈 건강 앱</span>
+      <h2 class="intro-title">하루의 눈 피로를 줄이는<br />짧고 쉬운 운동 루틴</h2>
+      <p class="intro-copy">카메라 인식 기반 눈 운동과 20-20-20 휴식 알림으로 디지털 눈피로를 관리하세요.</p>
       <div class="intro-points">
-        <div class="point">Blink, gaze, tracking, and focus exercises</div>
-        <div class="point">Real-time feedback while you train</div>
-        <div class="point">Simple break reminders you can keep</div>
+        <div class="point">깜빡임, 시선, 추적, 초점 운동 제공</div>
+        <div class="point">운동 중 실시간 피드백 확인</div>
+        <div class="point">일상에서 지키기 쉬운 휴식 알림</div>
       </div>
       <div class="cta-row">
-        <button id="startAppBtn" class="primary-btn magnetic scroll-cta" data-scroll-cta="intro">Start Training</button>
+        <button id="startAppBtn" class="primary-btn magnetic scroll-cta" data-scroll-cta="intro">운동 시작하기</button>
         <div class="cta-placeholder" data-cta-placeholder="intro"></div>
       </div>
       <div class="ticker">
         <div class="ticker-track">
-          <span class="ticker-item">Eye fatigue relief routine</span>
-          <span class="ticker-item">20-20-20 break habit</span>
-          <span class="ticker-item">Focus and gaze switching</span>
-          <span class="ticker-item">Camera-assisted feedback</span>
-          <span class="ticker-item">Healthy screen-time practice</span>
-          <span class="ticker-item">Eye fatigue relief routine</span>
-          <span class="ticker-item">20-20-20 break habit</span>
-          <span class="ticker-item">Focus and gaze switching</span>
-          <span class="ticker-item">Camera-assisted feedback</span>
-          <span class="ticker-item">Healthy screen-time practice</span>
+          <span class="ticker-item">눈 피로 완화 루틴</span>
+          <span class="ticker-item">20-20-20 휴식 습관</span>
+          <span class="ticker-item">초점과 시선 전환</span>
+          <span class="ticker-item">카메라 기반 피드백</span>
+          <span class="ticker-item">눈 건강 생활 습관</span>
+          <span class="ticker-item">눈 피로 완화 루틴</span>
+          <span class="ticker-item">20-20-20 휴식 습관</span>
+          <span class="ticker-item">초점과 시선 전환</span>
+          <span class="ticker-item">카메라 기반 피드백</span>
+          <span class="ticker-item">눈 건강 생활 습관</span>
         </div>
       </div>
     </article>
     <article class="intro-visual">
-      <div id="heroEmoji" class="optician-group" role="img" aria-label="Eye health character">
+      <div id="heroEmoji" class="optician-group" role="img" aria-label="눈건강 캐릭터">
         <div class="optician-3d-canvas-wrap">
           <canvas id="optician3dCanvas" class="optician-3d-canvas" aria-hidden="true"></canvas>
           <div id="optician3dFallback" class="optician-3d-image-pair optician-3d-fallback">
-            <img class="optician-3d-image" src="/static/davich_16x9.png" alt="Eye health intro image" />
+            <img class="optician-3d-image" src="/static/davich_16x9.png" alt="눈건강 소개 이미지" />
           </div>
         </div>
       </div>
@@ -229,52 +229,52 @@
 
   <div class="intro-sections">
     <div class="card app-intro-card">
-      <h2>About</h2>
-      <div class="info-item">This app helps reduce digital eye strain through short, practical routines and reminders.</div>
+      <h2>앱 소개</h2>
+      <div class="info-item">간단한 눈 운동과 휴식 알림을 통해 디지털 눈피로를 완화하도록 돕습니다.</div>
     </div>
     <div class="card reveal">
-      <h2>Latest News</h2>
-      <div id="newsStatus" class="news-status">Loading...</div>
+      <h2>다비치안경 최신 소식</h2>
+      <div id="newsStatus" class="news-status">불러오는 중...</div>
       <ul id="davichNewsList" class="news-list"></ul>
     </div>
     <div class="card reveal">
-      <h2>Quick Links</h2>
+      <h2>바로가기</h2>
       <div class="market-links">
-        <a class="menu-btn magnetic" href="https://www.davichmarket.com" target="_blank" rel="noopener noreferrer">Open Davich Market</a>
-        <a id="marketAppLink" class="menu-btn magnetic hidden" href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93" target="_blank" rel="noopener noreferrer">Open App Store Link</a>
+        <a class="menu-btn magnetic" href="https://www.davichmarket.com" target="_blank" rel="noopener noreferrer">다비치마켓 이동</a>
+        <a id="marketAppLink" class="menu-btn magnetic hidden" href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93" target="_blank" rel="noopener noreferrer">다비치마켓 앱</a>
       </div>
     </div>
     <div class="card reveal">
-      <h2>Company</h2>
-      <div class="info-item">Davich is an eyewear specialist brand focused on consistent eye care services.</div>
+      <h2>회사 소개</h2>
+      <div class="info-item">다비치는 표준화된 시력/안경 서비스를 제공하는 안경 전문 브랜드입니다.</div>
     </div>
   </div>
 </section>
 
 <section id="homeView" class="view">
   <div class="home-top">
-    <h2 class="title" style="font-size:1.05rem;">Training Menu</h2>
-    <button id="backIntroBtn" class="ghost-btn scroll-cta" data-scroll-cta="home">Back to Intro</button>
+    <h2 class="title" style="font-size:1.05rem;">운동 메뉴</h2>
+    <button id="backIntroBtn" class="ghost-btn scroll-cta" data-scroll-cta="home">소개로 돌아가기</button>
     <div class="cta-placeholder" data-cta-placeholder="home"></div>
   </div>
   <div class="home-grid">
     <article class="card reveal">
-      <h2>Select Exercise</h2>
+      <h2>운동 선택</h2>
       <div class="menu-list">
-        <button class="menu-btn" data-game="blink">Blink Trainer<div class="menu-desc">Blink rhythm and count training</div></button>
-        <button class="menu-btn" data-game="gaze">Gaze Direction<div class="menu-desc">Left, right, up, down eye movement</div></button>
-        <button class="menu-btn" data-game="circle">Circle Tracking<div class="menu-desc">Track moving target with your gaze</div></button>
-        <button class="menu-btn" data-game="focus">Near/Far Focus<div class="menu-desc">Alternate near and far focusing</div></button>
-        <button class="menu-btn" data-game="rule202020">20-20-20 Reminder<div class="menu-desc">Break timer every 20 minutes</div></button>
-        <button class="menu-btn" data-game="acuity">Acuity Reaction<div class="menu-desc">Guess the E direction quickly</div></button>
+        <button class="menu-btn" data-game="blink">깜빡임 트레이너<div class="menu-desc">눈 감기/뜨기 리듬 훈련</div></button>
+        <button class="menu-btn" data-game="gaze">시선 방향 운동<div class="menu-desc">좌/우/상/하 시선 이동 훈련</div></button>
+        <button class="menu-btn" data-game="circle">원형 추적 운동<div class="menu-desc">움직이는 목표를 따라가는 추적 운동</div></button>
+        <button class="menu-btn" data-game="focus">원근 초점 루틴<div class="menu-desc">가까운 곳/먼 곳 번갈아 초점 이동</div></button>
+        <button class="menu-btn" data-game="rule202020">20-20-20 알림<div class="menu-desc">20분마다 휴식 습관 만들기</div></button>
+        <button class="menu-btn" data-game="acuity">시력 반응 테스트<div class="menu-desc">E 방향 맞히기 반응 훈련</div></button>
       </div>
     </article>
     <article class="card reveal">
-      <h2>Eye Health Tips</h2>
+      <h2>눈 건강 가이드</h2>
       <div class="info-list">
-        <div class="info-item">Use the 20-20-20 rule: every 20 minutes, look far for 20 seconds.</div>
-        <div class="info-item">Blink regularly to reduce dryness and eye fatigue.</div>
-        <div class="info-item">Keep monitor position and viewing distance ergonomically comfortable.</div>
+        <div class="info-item">20분마다 20초 동안 6m 이상 먼 곳을 바라보는 20-20-20 습관을 추천합니다.</div>
+        <div class="info-item">의식적인 깜빡임은 눈물층 유지에 도움을 줍니다.</div>
+        <div class="info-item">모니터는 눈높이보다 약간 아래에 두고, 적절한 거리로 사용하세요.</div>
       </div>
     </article>
   </div>
@@ -283,16 +283,16 @@
 <section id="gameView" class="view">
   <div class="game-top">
     <div>
-      <h2 id="gameTitle" class="title" style="font-size:1.1rem;">Game</h2>
-      <div id="gameDesc" class="subtitle">Description</div>
+      <h2 id="gameTitle" class="title" style="font-size:1.1rem;">게임</h2>
+      <div id="gameDesc" class="subtitle">게임 설명</div>
     </div>
-    <button id="backHomeBtn" class="ghost-btn scroll-cta" data-scroll-cta="game">Back to Menu</button>
+    <button id="backHomeBtn" class="ghost-btn scroll-cta" data-scroll-cta="game">운동 메뉴로</button>
     <div class="cta-placeholder" data-cta-placeholder="game"></div>
   </div>
 
   <div class="game-grid">
     <section class="emoji-wrap">
-      <div id="blinkCornerTime" class="blink-corner-time hidden">20s left</div>
+      <div id="blinkCornerTime" class="blink-corner-time hidden">남은 20초</div>
       <div id="blinkResultFlash" class="blink-result-flash hidden" aria-hidden="true"></div>
       <div id="emojiFace" class="emoji">
         <div class="eyes">
@@ -304,96 +304,96 @@
         <div class="nose"></div>
         <div id="mouth" class="mouth"></div>
       </div>
-      <img id="restGif" class="rest-gif hidden" src="/static/relax_rest.gif" alt="Rest guide" />
-      <div id="restCaption" class="rest-caption hidden">Break Time</div>
+      <img id="restGif" class="rest-gif hidden" src="/static/relax_rest.gif" alt="휴식 안내" />
+      <div id="restCaption" class="rest-caption hidden">눈 휴식 시간</div>
       <div id="blinkFloat" class="blink-float" aria-hidden="true"></div>
     </section>
 
     <section class="panel">
-      <h3>Controls</h3>
+      <h3>운동 컨트롤</h3>
       <div id="previewWrap" class="preview-wrap hidden">
         <video id="video" class="camera-preview" autoplay playsinline muted></video>
         <canvas id="gazeOverlay" class="gaze-overlay"></canvas>
       </div>
-      <div id="status" class="status">Idle</div>
-      <div id="earText" class="metric hidden">EAR: -</div>
-      <div id="blinkText" class="metric hidden">Blink detect: 0</div>
-      <div id="gazeText" class="metric">Gaze direction: -</div>
+      <div id="status" class="status">대기 중</div>
+      <div id="earText" class="metric hidden">EAR 지수: -</div>
+      <div id="blinkText" class="metric hidden">깜빡임 감지: 0회</div>
+      <div id="gazeText" class="metric">시선 방향: -</div>
       <div class="ctrl-row">
-        <button id="startCameraBtn" class="primary-btn hidden">Start Camera</button>
-        <button id="resetStateBtn" class="secondary-btn hidden">Reset State</button>
+        <button id="startCameraBtn" class="primary-btn hidden">카메라 시작</button>
+        <button id="resetStateBtn" class="secondary-btn hidden">운동 상태 초기화</button>
       </div>
 
       <div id="permissionHelp" class="permission-help hidden">
-        <div class="permission-title">Camera permission required</div>
-        <div id="permissionText" class="permission-text">Allow camera access in browser settings.</div>
+        <div class="permission-title">카메라 권한이 필요합니다</div>
+        <div id="permissionText" class="permission-text">브라우저 설정에서 카메라 권한을 허용해 주세요.</div>
       </div>
 
       <div id="blinkPanel" class="panel hidden" style="margin-top:10px;">
-        <h3>Blink Trainer</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Goal: at least 12 blinks in 20 seconds</p>
-        <div id="blinkGoal" class="meta">Goal: 20s / 12+ blinks</div>
-        <div id="blinkCountLine" class="meta">Blink count: 0</div>
-        <div id="blinkTimeLine" class="meta">Time left: 20s</div>
-        <div class="ctrl-row"><button id="blinkStartBtn" class="primary-btn">Start 20s Set</button></div>
-        <div id="blinkMeta" class="meta">Ready</div>
+        <h3>깜빡임 트레이너</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">20초 동안 12회 이상 깜빡이기 목표</p>
+        <div id="blinkGoal" class="meta">목표: 20초 / 12회 이상</div>
+        <div id="blinkCountLine" class="meta">현재 횟수: 0회</div>
+        <div id="blinkTimeLine" class="meta">남은 시간: 20초</div>
+        <div class="ctrl-row"><button id="blinkStartBtn" class="primary-btn">20초 세트 시작</button></div>
+        <div id="blinkMeta" class="meta">준비 전</div>
       </div>
 
       <div id="gazePanel" class="panel hidden" style="margin-top:10px;">
-        <h3>Gaze Direction</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Hold target direction for 3 seconds</p>
+        <h3>시선 방향 운동</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">방향별 3초 유지로 단계 진행</p>
         <div class="ctrl-row">
-          <button id="gazeStartBtn" class="primary-btn">Start</button>
-          <button id="gazeRecalibrateBtn" class="secondary-btn">Recalibrate</button>
+          <button id="gazeStartBtn" class="primary-btn">운동 시작</button>
+          <button id="gazeRecalibrateBtn" class="secondary-btn">재보정</button>
         </div>
-        <div id="gazeMeta" class="meta">Ready</div>
+        <div id="gazeMeta" class="meta">준비 전</div>
       </div>
 
       <div id="circlePanel" class="panel hidden" style="margin-top:10px;">
-        <h3>Circle Tracking</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Follow the moving target smoothly.</p>
-        <div class="meta" style="margin-top:6px;"><span style="color:#2f7cff;font-weight:800;">Blue</span>: target <span style="color:#ff9f2f;font-weight:800;">Orange</span>: your gaze</div>
+        <h3>원형 추적 운동</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">움직이는 목표를 시선으로 따라가세요.</p>
+        <div class="meta" style="margin-top:6px;"><span style="color:#2f7cff;font-weight:800;">파란색</span>: 목표점 <span style="color:#ff9f2f;font-weight:800;">주황색</span>: 현재 시선</div>
         <div id="circleTrackArea" class="circle-track-area"><div id="circleTarget" class="circle-target"></div><div id="circleCursor" class="circle-cursor"></div></div>
-        <div class="ctrl-row"><button id="circleStartBtn" class="primary-btn">Start Tracking</button></div>
-        <div id="circleMeta" class="meta">Ready</div>
+        <div class="ctrl-row"><button id="circleStartBtn" class="primary-btn">운동 시작</button></div>
+        <div id="circleMeta" class="meta">준비 전</div>
       </div>
 
       <div id="focusPanel" class="panel hidden" style="margin-top:10px;">
-        <h3>Near/Far Focus</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Alternate focus for 60 seconds.</p>
-        <div class="ctrl-row"><button id="focusStartBtn" class="primary-btn">Start 60s Routine</button></div>
-        <div id="focusMeta" class="meta">Ready</div>
+        <h3>원근 초점 루틴</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">60초 동안 가까운/먼 거리 초점 전환</p>
+        <div class="ctrl-row"><button id="focusStartBtn" class="primary-btn">60초 루틴 시작</button></div>
+        <div id="focusMeta" class="meta">준비 전</div>
       </div>
 
       <div id="rulePanel" class="panel hidden" style="margin-top:10px;">
-        <h3>20-20-20 Reminder</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Notify every 20 minutes.</p>
+        <h3>20-20-20 알림</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">20분마다 휴식 알림을 보냅니다.</p>
         <div class="ctrl-row">
-          <button id="ruleStartBtn" class="primary-btn">Start 20m Reminder</button>
-          <button id="ruleStopBtn" class="ghost-btn hidden">Stop Reminder</button>
+          <button id="ruleStartBtn" class="primary-btn">20분 알림 시작</button>
+          <button id="ruleStopBtn" class="ghost-btn hidden">알림 중지</button>
         </div>
-        <div id="ruleMeta" class="meta">Waiting</div>
+        <div id="ruleMeta" class="meta">대기중</div>
       </div>
 
       <div id="acuityPanel" class="panel hidden" style="margin-top:10px;">
-        <h3>Acuity Reaction Test</h3>
-        <p style="margin:0;color:#34557f;font-size:0.86rem;">Pick the E direction quickly.</p>
+        <h3>시력 반응 테스트</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">회전된 E의 방향을 맞혀보세요.</p>
         <div id="optotypeWrap" class="optotype-wrap"><div id="optotypeE" class="optotype-e">E</div><div id="acuityFirework" class="acuity-firework" aria-hidden="true"></div></div>
         <div id="acuityFx" class="acuity-fx" aria-hidden="true"></div>
         <div id="acuityCountFx" class="acuity-count-fx" aria-hidden="true">0 / 12</div>
-        <div class="ctrl-row"><button id="acuityStartBtn" class="primary-btn">Start Test</button></div>
-        <div class="ctrl-row"><button id="acuityUpBtn" class="secondary-btn">Up</button><button id="acuityRightBtn" class="secondary-btn">Right</button><button id="acuityDownBtn" class="secondary-btn">Down</button><button id="acuityLeftBtn" class="secondary-btn">Left</button></div>
-        <div id="acuityMeta" class="meta">Ready</div>
+        <div class="ctrl-row"><button id="acuityStartBtn" class="primary-btn">테스트 시작</button></div>
+        <div class="ctrl-row"><button id="acuityUpBtn" class="secondary-btn">위</button><button id="acuityRightBtn" class="secondary-btn">오른쪽</button><button id="acuityDownBtn" class="secondary-btn">아래</button><button id="acuityLeftBtn" class="secondary-btn">왼쪽</button></div>
+        <div id="acuityMeta" class="meta">준비 전</div>
       </div>
     </section>
   </div>
 </section>
 
 <section id="evidenceSummarySection" class="evidence-summary hidden">
-  <h3 id="evidenceSummaryTitle">Why this exercise helps</h3>
-  <p id="evidenceSummaryText">Select a game to see a short evidence summary.</p>
+  <h3 id="evidenceSummaryTitle">눈운동 근거 요약</h3>
+  <p id="evidenceSummaryText">운동을 선택하면 관련 설명이 여기에 표시됩니다.</p>
 </section>
-<div class="notice">This is a wellness aid, not a medical diagnosis tool.</div>
+<div class="notice">이 서비스는 생활 관리용입니다. 진단이나 치료가 필요한 경우 전문의와 상담하세요.</div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -440,6 +440,8 @@
 <script src="/static/js/push.js"></script>
 </body>
 </html>
+
+
 
 
 
