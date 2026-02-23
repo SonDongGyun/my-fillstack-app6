@@ -120,6 +120,19 @@
       : setInterval(tick, 250);
   }
 
+  async function ensureNotificationWorker(){
+    if (!("serviceWorker" in navigator)) return null;
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    }
+    try {
+      await navigator.serviceWorker.ready;
+      reg = await navigator.serviceWorker.getRegistration() || reg;
+    } catch (_) {}
+    return reg;
+  }
+
   async function showLocalReminderNotification(){
     if (!("Notification" in window)) {
       alert(TEXT.remindAlert);
@@ -134,17 +147,15 @@
     }
 
     try {
-      if ("serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg && reg.showNotification) {
-          await reg.showNotification(TEXT.notifTitle, {
-            body: TEXT.notifBody,
-            icon: "/static/davich_logo.png",
-            badge: "/static/davich_logo.png",
-            tag: "eye-local-" + Date.now(),
-          });
-          return;
-        }
+      const reg = await ensureNotificationWorker();
+      if (reg && reg.showNotification) {
+        await reg.showNotification(TEXT.notifTitle, {
+          body: TEXT.notifBody,
+          icon: "/static/davich_logo.png",
+          badge: "/static/davich_logo.png",
+          tag: "eye-local-" + Date.now(),
+        });
+        return;
       }
       new Notification(TEXT.notifTitle, { body: TEXT.notifBody });
     } catch (_) {
@@ -158,6 +169,9 @@
     updateRuleButtons();
     renderStatus();
     startCountdown(sec, null);
+
+    // Start confirmation: one immediate local notification for permission/OS route validation.
+    await showLocalReminderNotification();
 
     clearLocalReminder();
     const notify = () => { void showLocalReminderNotification(); };
