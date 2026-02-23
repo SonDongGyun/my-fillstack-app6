@@ -1,5 +1,14 @@
-﻿import * as Notifications from "expo-notifications";
+import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+
+const DEFAULT_REMINDER_SECONDS = 20 * 60;
+const MIN_REMINDER_SECONDS = 60;
+const NOTIFICATION_CHANNEL_ID = "default";
+
+const REMINDER_CONTENT = {
+  title: "20-20-20 Reminder",
+  body: "Look at something 6m away for 20 seconds.",
+};
 
 type PushRuntime = {
   enabled: boolean;
@@ -10,6 +19,10 @@ type PushRuntime = {
 let initialized = false;
 let reminderNotificationId: string | null = null;
 let pushRuntime: PushRuntime = { enabled: false, token: null, reason: "not_initialized" };
+
+function toErrorMessage(error: unknown): string {
+  return String((error as Error)?.message || error);
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -47,8 +60,8 @@ export async function ensurePushReady(): Promise<PushRuntime> {
       return getPushRuntime();
     }
 
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
+    await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
+      name: NOTIFICATION_CHANNEL_ID,
       importance: Notifications.AndroidImportance.DEFAULT,
       vibrationPattern: [0, 200, 120, 200],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -62,13 +75,13 @@ export async function ensurePushReady(): Promise<PushRuntime> {
     pushRuntime = {
       enabled: false,
       token: null,
-      reason: String((error as Error)?.message || error),
+      reason: toErrorMessage(error),
     };
     return getPushRuntime();
   }
 }
 
-export async function startReminderPush(intervalSeconds = 20 * 60): Promise<{ ok: boolean; id?: string; reason?: string }> {
+export async function startReminderPush(intervalSeconds = DEFAULT_REMINDER_SECONDS): Promise<{ ok: boolean; id?: string; reason?: string }> {
   const runtime = await ensurePushReady();
   if (!runtime.enabled) {
     return { ok: false, reason: runtime.reason || "push_unavailable" };
@@ -80,12 +93,9 @@ export async function startReminderPush(intervalSeconds = 20 * 60): Promise<{ ok
       reminderNotificationId = null;
     }
 
-    const seconds = Math.max(60, Math.round(intervalSeconds));
+    const seconds = Math.max(MIN_REMINDER_SECONDS, Math.round(intervalSeconds));
     reminderNotificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "20-20-20 Reminder",
-        body: "Look at something 6m away for 20 seconds.",
-      },
+      content: REMINDER_CONTENT,
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds,
@@ -95,7 +105,7 @@ export async function startReminderPush(intervalSeconds = 20 * 60): Promise<{ ok
 
     return { ok: true, id: reminderNotificationId };
   } catch (error) {
-    return { ok: false, reason: String((error as Error)?.message || error) };
+    return { ok: false, reason: toErrorMessage(error) };
   }
 }
 
@@ -107,8 +117,6 @@ export async function stopReminderPush(): Promise<{ ok: boolean; reason?: string
     }
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: String((error as Error)?.message || error) };
+    return { ok: false, reason: toErrorMessage(error) };
   }
 }
-
-

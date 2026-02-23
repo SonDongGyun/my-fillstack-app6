@@ -1,0 +1,9 @@
+﻿{
+  "name": "my-fullstack-app5-api",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

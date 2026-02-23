@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import {
@@ -6,15 +6,84 @@ import {
   FaceDetectorClassifications,
   FaceDetectorLandmarks,
   FaceDetectorMode,
+  type FaceFeature,
 } from "expo-face-detector";
 import { faceToGaze } from "./lib/faceToGaze";
 import { clamp } from "./lib/gazeMath";
+import { GAZE_CAMERA_CONFIG } from "./config/gazeCameraConfig";
 
 type Props = {
   active: boolean;
   onSample: (sample: { x: number; y: number; confidence: number; blink: boolean }) => void;
   onStatus: (status: string) => void;
 };
+
+type CalibrationState = {
+  x: number;
+  y: number;
+  samples: number;
+  ready: boolean;
+};
+
+function updateCalibration(calibration: CalibrationState, gaze: { x: number; y: number; confidence: number; blink: boolean }) {
+  if (gaze.blink || gaze.confidence < 0.55) return;
+
+  const alpha =
+    calibration.samples < GAZE_CAMERA_CONFIG.calibrationSlowdownSample
+      ? GAZE_CAMERA_CONFIG.calibrationAlphaEarly
+      : GAZE_CAMERA_CONFIG.calibrationAlphaLate;
+
+  calibration.x += (gaze.x - calibration.x) * alpha;
+  calibration.y += (gaze.y - calibration.y) * alpha;
+  calibration.samples += 1;
+  calibration.ready = calibration.samples >= GAZE_CAMERA_CONFIG.calibrationReadySamples;
+}
+
+function toCompensatedSample(
+  gaze: { x: number; y: number; confidence: number; blink: boolean },
+  faceWidth: number,
+  calibration: CalibrationState
+) {
+  const compensatedX = calibration.ready
+    ? clamp((gaze.x - calibration.x) * GAZE_CAMERA_CONFIG.xCompensationGain, -1, 1)
+    : gaze.x;
+  const compensatedY = calibration.ready
+    ? clamp((gaze.y - calibration.y) * GAZE_CAMERA_CONFIG.yCompensationGain, -1, 1)
+    : gaze.y;
+  const sizeConfidence = clamp(faceWidth / 220, 0.4, 1);
+  const confidence = clamp(gaze.confidence * 0.8 + sizeConfidence * 0.2, 0.15, 1);
+
+  return {
+    x: compensatedX,
+    y: compensatedY,
+    confidence,
+    blink: gaze.blink,
+  };
+}
+
+function trackFace(
+  face: FaceFeature,
+  calibration: CalibrationState,
+  onSample: Props["onSample"],
+  onStatus: Props["onStatus"]
+) {
+  const faceWidth = face.bounds?.size?.width ?? 0;
+  if (faceWidth < GAZE_CAMERA_CONFIG.minFaceWidth) {
+    onStatus("face too far - move closer");
+    return;
+  }
+
+  const gaze = faceToGaze(face);
+  if (gaze.confidence < GAZE_CAMERA_CONFIG.minGazeConfidence) {
+    onStatus("native camera low confidence");
+    return;
+  }
+
+  updateCalibration(calibration, gaze);
+  const sample = toCompensatedSample(gaze, faceWidth, calibration);
+  onSample(sample);
+  onStatus(`native camera tracking x:${sample.x.toFixed(2)} y:${sample.y.toFixed(2)} c:${sample.confidence.toFixed(2)}`);
+}
 
 export function NativeCameraGaze({ active, onSample, onStatus }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -23,7 +92,7 @@ export function NativeCameraGaze({ active, onSample, onStatus }: Props) {
   const busyRef = useRef(false);
   const stopRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const calibrationRef = useRef({ x: 0, y: 0, samples: 0, ready: false });
+  const calibrationRef = useRef<CalibrationState>({ x: 0, y: 0, samples: 0, ready: false });
 
   const detectorOptions = useMemo(
     () => ({
@@ -50,13 +119,12 @@ export function NativeCameraGaze({ active, onSample, onStatus }: Props) {
     stopRef.current = false;
 
     const tick = async () => {
-      if (stopRef.current) return;
-      if (busyRef.current) return;
+      if (stopRef.current || busyRef.current) return;
       busyRef.current = true;
 
       try {
         const shot = await cameraRef.current?.takePictureAsync({
-          quality: 0.14,
+          quality: GAZE_CAMERA_CONFIG.frameQuality,
           skipProcessing: true,
           shutterSound: false,
         });
@@ -73,35 +141,7 @@ export function NativeCameraGaze({ active, onSample, onStatus }: Props) {
           return;
         }
 
-        const faceWidth = face.bounds?.size?.width ?? 0;
-        if (faceWidth < 110) {
-          onStatus("face too far - move closer");
-          return;
-        }
-
-        const gaze = faceToGaze(face);
-        if (gaze.confidence < 0.4) {
-          onStatus("native camera low confidence");
-          return;
-        }
-
-        if (!gaze.blink && gaze.confidence >= 0.55) {
-          const c = calibrationRef.current;
-          const alpha = c.samples < 18 ? 0.12 : 0.04;
-          c.x += (gaze.x - c.x) * alpha;
-          c.y += (gaze.y - c.y) * alpha;
-          c.samples += 1;
-          c.ready = c.samples >= 8;
-        }
-
-        const c = calibrationRef.current;
-        const compensatedX = c.ready ? clamp((gaze.x - c.x) * 1.22, -1, 1) : gaze.x;
-        const compensatedY = c.ready ? clamp((gaze.y - c.y) * 1.18, -1, 1) : gaze.y;
-        const sizeConfidence = clamp(faceWidth / 220, 0.4, 1);
-        const confidence = clamp(gaze.confidence * 0.8 + sizeConfidence * 0.2, 0.15, 1);
-
-        onSample({ x: compensatedX, y: compensatedY, confidence, blink: gaze.blink });
-        onStatus(`native camera tracking x:${compensatedX.toFixed(2)} y:${compensatedY.toFixed(2)} c:${confidence.toFixed(2)}`);
+        trackFace(face, calibrationRef.current, onSample, onStatus);
       } catch {
         onStatus("native camera tracking error");
       } finally {
@@ -109,7 +149,7 @@ export function NativeCameraGaze({ active, onSample, onStatus }: Props) {
         if (!stopRef.current) {
           timerRef.current = setTimeout(() => {
             void tick();
-          }, 180);
+          }, GAZE_CAMERA_CONFIG.trackLoopIntervalMs);
         }
       }
     };
@@ -170,6 +210,3 @@ const styles = StyleSheet.create({
     color: "#627ba0",
   },
 });
-
-
-

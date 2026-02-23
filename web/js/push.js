@@ -7,11 +7,13 @@
 
   const state = {
     countdownTimer: null,
+    localReminderTimer: null,
     nextPushTs: 0,
     ui: { active: false, status: "idle" },
     stopping: false,
     homeAutoStartedOnce: false,
     pushCapable: false,
+    localMode: false,
   };
 
   function postNative(message){
@@ -69,6 +71,18 @@
     }
   }
 
+  function clearLocalReminder(){
+    if (timerManager) {
+      timerManager.clearInterval("local-reminder");
+      state.localReminderTimer = null;
+      return;
+    }
+    if (state.localReminderTimer) {
+      clearInterval(state.localReminderTimer);
+      state.localReminderTimer = null;
+    }
+  }
+
   function startCountdown(seconds, nextFireAtEpochMs){
     clearCountdown();
     const sec = Math.max(1, seconds | 0);
@@ -88,6 +102,56 @@
     state.countdownTimer = timerManager
       ? timerManager.setInterval("push-countdown", tick, 250)
       : setInterval(tick, 250);
+  }
+
+  async function showLocalReminderNotification(){
+    if (!("Notification" in window)) {
+      alert("20-20-20 reminder: look at a distant object for 20 seconds.");
+      return;
+    }
+
+    let perm = Notification.permission;
+    if (perm !== "granted") perm = await Notification.requestPermission();
+    if (perm !== "granted") {
+      alert("20-20-20 reminder: look at a distant object for 20 seconds.");
+      return;
+    }
+
+    try {
+      if ("serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.showNotification) {
+          await reg.showNotification("20-20-20 eye break", {
+            body: "Look 6m+ away for 20 seconds and blink slowly 5 times.",
+            icon: "/static/davich_logo.png",
+            badge: "/static/davich_logo.png",
+            tag: `eye-local-${Date.now()}`,
+          });
+          return;
+        }
+      }
+      new Notification("20-20-20 eye break", {
+        body: "Look 6m+ away for 20 seconds and blink slowly 5 times.",
+      });
+    } catch (_) {
+      alert("20-20-20 reminder: look at a distant object for 20 seconds.");
+    }
+  }
+
+  async function startLocalReminder(sec){
+    state.localMode = true;
+    state.ui = { active: true, status: "local reminder running" };
+    updateRuleButtons();
+    renderStatus();
+    startCountdown(sec, null);
+
+    clearLocalReminder();
+    const notify = () => {
+      void showLocalReminderNotification();
+    };
+    state.localReminderTimer = timerManager
+      ? timerManager.setInterval("local-reminder", notify, sec * 1000)
+      : setInterval(notify, sec * 1000);
   }
 
   async function ensurePushSubscription(){
@@ -132,6 +196,9 @@
     const silent = !!(options && options.silent);
     try {
       clearCountdown();
+      clearLocalReminder();
+      state.localMode = false;
+
       if (IS_NATIVE_WEBVIEW) {
         postNative({ type: "NATIVE_PUSH_STOP" });
       } else {
@@ -157,6 +224,7 @@
       if (IS_NATIVE_WEBVIEW) {
         postNative({ type: "NATIVE_PUSH_START", payload: { intervalSeconds: sec } });
         state.pushCapable = true;
+        state.localMode = false;
         setUi("running");
         updateRuleButtons();
         startCountdown(sec, null);
@@ -172,6 +240,7 @@
       const data = await res.json();
       if (!data || !data.ok) throw new Error("Failed to start push schedule.");
 
+      state.localMode = false;
       if (data.immediate && data.immediate.failed > 0 && !(data.immediate.sent > 0)) {
         const firstErr = (data.immediate.errors && data.immediate.errors[0]) ? data.immediate.errors[0] : null;
         const detail = firstErr
@@ -188,8 +257,22 @@
       updateRuleButtons();
       startCountdown(sec, data.next_fire_at_epoch_ms);
     } catch (err) {
+      const message = String(err && err.message ? err.message : err);
+      const canFallback = !IS_NATIVE_WEBVIEW && (
+        message.includes("Push is not configured yet") ||
+        message.includes("Failed to save push subscription") ||
+        message.includes("Failed to start push schedule")
+      );
+
+      if (canFallback) {
+        const sec = Math.max(1, Math.round(intervalMs / 1000));
+        await startLocalReminder(sec);
+        return;
+      }
+
       clearCountdown();
-      setUi(`start_fail:${String(err && err.message ? err.message : err)}`);
+      clearLocalReminder();
+      setUi(`start_fail:${message}`);
       updateRuleButtons();
       renderStatus();
       console.error(err);
@@ -211,7 +294,7 @@
       const data = await res.json();
       state.pushCapable = !!(data && data.ok && data.public_key);
       if (!state.pushCapable) {
-        state.ui = { active: false, status: "push not configured" };
+        state.ui = { active: false, status: "push not configured (local fallback available)" };
         updateRuleButtons();
         renderStatus();
         return;
@@ -256,9 +339,7 @@
     state.homeAutoStartedOnce = true;
     await window.syncRulePushUi();
 
-    // App mode should not auto-start push schedule on page load.
     if (IS_NATIVE_WEBVIEW) return;
-
     if (!state.pushCapable) return;
     setTimeout(() => window.startRuleReminder(20 * 60 * 1000), 0);
   }

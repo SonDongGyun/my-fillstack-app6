@@ -23,7 +23,12 @@ const GAZE_CFG={
 const ua=navigator.userAgent||"";
 const isIOS=/iPhone|iPad|iPod/i.test(ua);
 if(isIOS&&previewWrap)previewWrap.classList.add("real-world");
-function applyViewTransformToGaze(gaze){if(isIOS&&previewWrap&&previewWrap.classList.contains("real-world"))return{x:-gaze.x,y:gaze.y};return gaze;}
+function applyViewTransformToGaze(gaze){
+  if(isIOS&&previewWrap&&previewWrap.classList.contains("real-world")){
+    return{x:-gaze.x,y:gaze.y};
+  }
+  return gaze;
+}
 let ruleInterval=null,ruleTick=null,ruleTargetTs=0,focusTimer=null,focusTick=null,focusEndTs=0;
 const LEFT_EYE=[33,160,158,133,153,144],RIGHT_EYE=[362,385,387,263,373,380],LEFT_IRIS=[473,474,475,476,477],RIGHT_IRIS=[468,469,470,471,472];
 const LEFT_EYE_BOX={left:33,right:133,top:159,bottom:145},RIGHT_EYE_BOX={left:362,right:263,top:386,bottom:374};
@@ -36,14 +41,57 @@ const APP_STATE={
   app:{currentGame:null,lastDirectionTtsTs:0},
   camera:{running:false,faceVisible:false},
   blink:{totalDetected:0,exerciseActive:false,exerciseCount:0,exerciseTimer:null,exerciseEndTs:0,exerciseLocked:false,finishFxTimer:null,resultFlashTimer:null},
-  gaze:{exerciseActive:false,sequence:[],stepIndex:0,holdMs:0,lastTs:0,stepFxTimer:null,lastDirection:"",lastVibeTs:0,neutralX:0,neutralY:0,neutralReady:false,smoothX:0,smoothY:0,stableDirection:"정면",emojiPupilX:0,emojiPupilY:0,lastAnnouncedTarget:"",calibrating:false,calibrationStep:0,calibrationHoldMs:0,calibrationSamples:[],calibrationMap:null,calibrated:false,lastClassifiedDir:"CENTER",lastScore:0,nativeX:0,nativeY:0,nativeInit:false},
+  gaze:{exerciseActive:false,sequence:[],stepIndex:0,holdMs:0,lastTs:0,stepFxTimer:null,lastDirection:"",lastVibeTs:0,neutralX:0,neutralY:0,neutralReady:false,smoothX:0,smoothY:0,stableDirection:"CENTER",emojiPupilX:0,emojiPupilY:0,lastAnnouncedTarget:"",calibrating:false,calibrationStep:0,calibrationHoldMs:0,calibrationSamples:[],calibrationMap:null,calibrated:false,lastClassifiedDir:"CENTER",lastScore:0,nativeX:0,nativeY:0,nativeInit:false},
   acuity:{active:false,round:0,score:0,direction:"UP",size:74,questionTimer:null,deadlineTs:0},
   circle:{active:false,startTs:0,lastTs:0,durationMs:30000,followMs:0,threshold:0.30,targetX:0,targetY:0,endShown:false},
 };
-function setCurrentGame(key){APP_STATE.app.currentGame=key;}
-function setRunning(v){APP_STATE.camera.running=!!v;}
-function setFaceVisible(v){APP_STATE.camera.faceVisible=!!v;}
-function setTotalBlinkDetected(v){APP_STATE.blink.totalDetected=v;}
+function patchState(scope,partial){if(!APP_STATE[scope]||!partial)return;Object.assign(APP_STATE[scope],partial);} 
+function setAppState(partial){patchState("app",partial);} 
+function setCameraState(partial){patchState("camera",partial);} 
+function setBlinkState(partial){patchState("blink",partial);} 
+function setGazeState(partial){patchState("gaze",partial);} 
+function setAcuityState(partial){patchState("acuity",partial);} 
+function setCircleState(partial){patchState("circle",partial);} 
+const uiDom=window.UiDom||{};
+const setText=typeof uiDom.setText==="function"?uiDom.setText:(el,text)=>{if(el)el.textContent=String(text??"");};
+const setHtml=typeof uiDom.setHtml==="function"?uiDom.setHtml:(el,html)=>{if(el)el.innerHTML=String(html??"");};
+const uiTexts=window.UiTexts||{};
+const UI_LABELS={
+  gazeDirectionPrefix:uiTexts.gazeDirectionPrefix||"Gaze direction",
+  statusRecognizing:uiTexts.statusRecognizing||"Tracking",
+  statusIdle:uiTexts.statusIdle||"Idle",
+  statusNativeRecognizing:uiTexts.statusNativeRecognizing||"Native camera tracking",
+  statusNativeLowConfidence:uiTexts.statusNativeLowConfidence||"Native camera tracking (low confidence)",
+};
+const COPY={
+  inProgress:"In progress",
+  cameraStarting:"Starting camera...",
+  cameraRunning:"Camera running",
+  cameraPermissionDenied:"Please allow camera permission.",
+  cameraStartFailed:"Unable to start camera. Check browser/HTTPS.",
+  mediapipeLoadFailed:"MediaPipe load failed",
+  allowCameraAndRetry:"Allow camera permission and retry",
+  acuityNotStarted:"Game has not started",
+  correct:"Correct",
+  wrong:"Wrong",
+  correctFx:"Correct! ",
+  wrongFx:"Wrong! ",
+  blinkCount:(count)=>`Blink count: ${count}`,
+  timeLeft:(sec)=>`Time left: ${sec}s`,
+  gazeFirstTarget:(label)=>`In progress - first target: ${label} - 0.00/3.00s (1/10)`,
+  gazeTarget:(label,hold,step)=>`Target: ${label} | ${hold}/3.00s (${step}/10)`,
+  gazeDone:"Done: completed all 10 steps",
+  circleGuide:"In progress - follow the circular target",
+  circleProgress:(acc,remain)=>`In progress - accuracy ${acc}% - ${remain}s left`,
+  circleDone:(acc)=>`Done - accuracy ${acc}%`,
+  circleRetry:(acc)=>`Done - accuracy ${acc}% (try again)`,
+  nextBreak:(time)=>`Next break in ${time}`,
+  ruleAlert:"20-20-20 rule: every 20 min, look far for 20 sec.",
+};
+function setCurrentGame(key){setAppState({currentGame:key});}
+function setRunning(v){setCameraState({running:!!v});}
+function setFaceVisible(v){setCameraState({faceVisible:!!v});}
+function setTotalBlinkDetected(v){setBlinkState({totalDetected:v});}
 function getCurrentGame(){return APP_STATE.app.currentGame;}
 function isRunning(){return APP_STATE.camera.running;}
 function getTotalBlinkDetected(){return APP_STATE.blink.totalDetected;}
@@ -184,6 +232,7 @@ function updateScrollCtas(){
     if(shouldUndock&&btn._dock.docked)undockCta(btn,true);
   });
 }
+// UI shell and core dependencies
 const uiShellFactory=window.EyeUiShell&&typeof window.EyeUiShell.create==="function"?window.EyeUiShell.create:null;
 const uiShell=uiShellFactory?uiShellFactory({
   introView,homeView,gameView,evidenceSummarySection,
@@ -245,8 +294,47 @@ function toggleRuleOnlyLayout(key){
 }
 function renderGameEvidence(key){if(!evidenceSummaryTitleEl||!evidenceSummaryTextEl)return;const v=evidenceSummaryConfig[key]||{title:"눈운동 근거 쉬운 설명",text:"게임을 선택하면 해당 운동과 관련된 쉬운 설명이 여기 표시됩니다."};evidenceSummaryTitleEl.textContent=v.title;evidenceSummaryTextEl.textContent=v.text;}
 function updateBlinkCornerTime(sec){if(!blinkCornerTimeEl)return;const s=Math.max(0,Math.ceil(sec));blinkCornerTimeEl.textContent=`남은 ${s}초`;}
-function enterGame(key){setCurrentGame(key);gameTitleEl.textContent=gameConfig[key].title;gameDescEl.textContent=gameConfig[key].desc;renderGameEvidence(key);setEmojiTheme(key);toggleRuleOnlyLayout(key);blinkPanel.classList.toggle("hidden",key!=="blink");gazePanel.classList.toggle("hidden",key!=="gaze");if(circlePanel)circlePanel.classList.toggle("hidden",key!=="circle");focusPanel.classList.toggle("hidden",key!=="focus");rulePanel.classList.toggle("hidden",key!=="rule202020");acuityPanel.classList.toggle("hidden",key!=="acuity");gazeTextEl.classList.toggle("hidden",!(key==="gaze"||key==="circle"));if(previewWrap)previewWrap.classList.toggle("hidden",!(key==="gaze"||key==="circle"));if(blinkCornerTimeEl){blinkCornerTimeEl.classList.toggle("hidden",key!=="blink");if(key==="blink")updateBlinkCornerTime(20);}showView("game");statusEl.textContent="대기 중";if(key==="rule202020"&&typeof window.syncRulePushUi==="function"){window.syncRulePushUi();}}
-function setEmojiClosed(closed){leftEye.classList.toggle("closed",closed);rightEye.classList.toggle("closed",closed);} function triggerEmojiBlink(){setEmojiClosed(true);setTimeout(()=>setEmojiClosed(false),BLINK_ANIM_MS);} 
+function enterGame(key){
+  setCurrentGame(key);
+  gameTitleEl.textContent=gameConfig[key].title;
+  gameDescEl.textContent=gameConfig[key].desc;
+
+  renderGameEvidence(key);
+  setEmojiTheme(key);
+  toggleRuleOnlyLayout(key);
+
+  blinkPanel.classList.toggle("hidden",key!=="blink");
+  gazePanel.classList.toggle("hidden",key!=="gaze");
+  if(circlePanel)circlePanel.classList.toggle("hidden",key!=="circle");
+  focusPanel.classList.toggle("hidden",key!=="focus");
+  rulePanel.classList.toggle("hidden",key!=="rule202020");
+  acuityPanel.classList.toggle("hidden",key!=="acuity");
+
+  const showGazeOverlay=key==="gaze"||key==="circle";
+  gazeTextEl.classList.toggle("hidden",!showGazeOverlay);
+  if(previewWrap)previewWrap.classList.toggle("hidden",!showGazeOverlay);
+
+  if(blinkCornerTimeEl){
+    blinkCornerTimeEl.classList.toggle("hidden",key!=="blink");
+    if(key==="blink")updateBlinkCornerTime(20);
+  }
+
+  showView("game");
+  statusEl.textContent=UI_LABELS.statusIdle;
+
+  if(key==="rule202020"&&typeof window.syncRulePushUi==="function"){
+    window.syncRulePushUi();
+  }
+}
+function setEmojiClosed(closed){
+  leftEye.classList.toggle("closed",closed);
+  rightEye.classList.toggle("closed",closed);
+}
+
+function triggerEmojiBlink(){
+  setEmojiClosed(true);
+  setTimeout(()=>setEmojiClosed(false),BLINK_ANIM_MS);
+} 
 function showBlinkFloat(count){
   if(!blinkFloatEl||APP_STATE.app.currentGame!=="blink"||!gameView.classList.contains("active"))return;
   const left=58+Math.random()*24;
@@ -276,11 +364,16 @@ function moveEmojiPupils(gaze){
   leftPupil.style.transform=t;
   rightPupil.style.transform=t;
 }
-function clearOverlay(){if(!gazeOverlay)return;const ctx=gazeOverlay.getContext("2d");if(!ctx)return;ctx.clearRect(0,0,gazeOverlay.width,gazeOverlay.height);}
+function clearOverlay(){
+  if(!gazeOverlay)return;
+  const ctx=gazeOverlay.getContext("2d");
+  if(!ctx)return;
+  ctx.clearRect(0,0,gazeOverlay.width,gazeOverlay.height);
+}
 function setPermissionHelp(show,text){
   if(!permissionHelp)return;
   permissionHelp.classList.toggle("hidden",!show);
-  if(show&&permissionText&&text)permissionText.textContent=text;
+  if(show&&permissionText&&text)setText(permissionText,text);
 }
 function getPermissionGuide(){
   const ua=navigator.userAgent||"";
@@ -416,7 +509,17 @@ function vibrateOnGazeDirectionChange(direction){
   if(isMobile&&navigator.vibrate&&!isIOS){navigator.vibrate([8,16,8]);return;}
   if(isMobile)playDirectionCue();
 }
-function resetThreshold(){baselineEar=null;closedThreshold=DEFAULT_CLOSED_THRESHOLD;openThreshold=DEFAULT_OPEN_THRESHOLD;} function updateThresholdsFromBaseline(){if(!baselineEar)return;closedThreshold=Math.max(.15,baselineEar-.09);openThreshold=Math.max(closedThreshold+.03,baselineEar-.04);} 
+function resetThreshold(){
+  baselineEar=null;
+  closedThreshold=DEFAULT_CLOSED_THRESHOLD;
+  openThreshold=DEFAULT_OPEN_THRESHOLD;
+}
+
+function updateThresholdsFromBaseline(){
+  if(!baselineEar)return;
+  closedThreshold=Math.max(.15,baselineEar-.09);
+  openThreshold=Math.max(closedThreshold+.03,baselineEar-.04);
+} 
 function triggerBlinkCompleteFx(ok,count){
   if(blinkPanel){
     blinkPanel.classList.remove("set-done-ok","set-done-warn");
@@ -438,17 +541,21 @@ function triggerBlinkCompleteFx(ok,count){
 }
 function onBlinkDetected(){
   if(APP_STATE.app.currentGame==="blink"&&APP_STATE.blink.exerciseLocked)return;
+
   setTotalBlinkDetected(APP_STATE.blink.totalDetected+1);
   updateMetrics();
   triggerEmojiBlink();
+
   if(APP_STATE.blink.exerciseActive){
-    APP_STATE.blink.exerciseCount+=1;
-    if(blinkCountLine)blinkCountLine.textContent=`현재 횟수: ${APP_STATE.blink.exerciseCount}회`;
+    setBlinkState({exerciseCount:APP_STATE.blink.exerciseCount+1});
+    if(blinkCountLine)setText(blinkCountLine,COPY.blinkCount(APP_STATE.blink.exerciseCount));
     showBlinkFloat(APP_STATE.blink.exerciseCount);
     return;
   }
+
   showBlinkFloat(APP_STATE.blink.totalDetected);
 }
+
 function formatMMSS(sec){return typeof logic.formatMMSS==="function"?logic.formatMMSS(sec):"00:00";}
 function clearTimers(){
   if(timerManager){
@@ -462,13 +569,89 @@ function clearTimers(){
     if(APP_STATE.acuity.questionTimer)clearInterval(APP_STATE.acuity.questionTimer);
   }
   APP_STATE.blink.exerciseTimer=ruleInterval=ruleTick=focusTimer=focusTick=APP_STATE.acuity.questionTimer=null;
-  APP_STATE.blink.exerciseActive=false;
-  APP_STATE.gaze.exerciseActive=false;
-  APP_STATE.circle.active=false;
-  APP_STATE.acuity.active=false;
+  setBlinkState({exerciseActive:false});
+  setGazeState({exerciseActive:false});
+  setCircleState({active:false});
+  setAcuityState({active:false});
 }
-function resetExerciseState(){clearTimers();APP_STATE.blink.exerciseLocked=false;if(blinkPanel)blinkPanel.classList.remove("set-done-ok","set-done-warn");if(circlePanel)circlePanel.classList.remove("set-done-ok","set-done-warn");if(acuityPanel)acuityPanel.classList.remove("set-done-ok","set-done-warn");if(optotypeWrapEl)optotypeWrapEl.classList.remove("set-done-ok","set-done-warn");if(emojiFace)emojiFace.classList.remove("session-finish-pop","finish-ok","finish-warn","gaze-step-success","focus-near","focus-far");if(APP_STATE.blink.resultFlashTimer)clearTimeout(APP_STATE.blink.resultFlashTimer);if(blinkResultFlashEl)blinkResultFlashEl.classList.add("hidden");setTotalBlinkDetected(0);updateMetrics();APP_STATE.blink.exerciseCount=0;APP_STATE.gaze.sequence=[];APP_STATE.gaze.stepIndex=0;APP_STATE.gaze.holdMs=0;APP_STATE.gaze.lastDirection="";APP_STATE.gaze.lastVibeTs=0;APP_STATE.app.lastDirectionTtsTs=0;APP_STATE.gaze.lastAnnouncedTarget="";try{if("speechSynthesis" in window)window.speechSynthesis.cancel();}catch(_){}APP_STATE.gaze.smoothX=0;APP_STATE.gaze.smoothY=0;APP_STATE.gaze.emojiPupilX=0;APP_STATE.gaze.emojiPupilY=0;APP_STATE.gaze.stableDirection="정면";APP_STATE.gaze.lastClassifiedDir="CENTER";APP_STATE.gaze.lastScore=0;APP_STATE.gaze.nativeX=0;APP_STATE.gaze.nativeY=0;APP_STATE.gaze.nativeInit=false;resetGazeCalibration();APP_STATE.circle.active=false;APP_STATE.circle.followMs=0;APP_STATE.circle.endShown=false;APP_STATE.acuity.active=false;APP_STATE.acuity.round=0;APP_STATE.acuity.score=0;if(blinkCountLine)blinkCountLine.textContent="현재 횟수: 0회";if(blinkTimeLine)blinkTimeLine.textContent="남은 시간: 20초";updateBlinkCornerTime(20);blinkMeta.textContent="시작 전";gazeMeta.textContent="시작 전";if(circleMeta)circleMeta.textContent="시작 전";focusMeta.textContent="시작 전";ruleMeta.textContent="중지됨";acuityMeta.textContent="시작 전";if(circleTrackArea)updateCircleTrackUi(0.45,0,0,0);if(acuityFxEl){acuityFxEl.classList.remove("show","ok","warn");acuityFxEl.textContent="";}if(acuityCountFxEl){acuityCountFxEl.classList.remove("show");acuityCountFxEl.textContent="0 / 12";}statusEl.textContent=APP_STATE.camera.running?"인식 중":"대기 중";}
-function acuityAngle(dir){return typeof acuityCore.angle==="function"?acuityCore.angle(dir):180;}
+function resetExerciseState(){
+  clearTimers();
+  setBlinkState({exerciseLocked:false});
+
+  if(blinkPanel)blinkPanel.classList.remove("set-done-ok","set-done-warn");
+  if(circlePanel)circlePanel.classList.remove("set-done-ok","set-done-warn");
+  if(acuityPanel)acuityPanel.classList.remove("set-done-ok","set-done-warn");
+  if(optotypeWrapEl)optotypeWrapEl.classList.remove("set-done-ok","set-done-warn");
+  if(emojiFace)emojiFace.classList.remove("session-finish-pop","finish-ok","finish-warn","gaze-step-success","focus-near","focus-far");
+
+  if(APP_STATE.blink.resultFlashTimer)clearTimeout(APP_STATE.blink.resultFlashTimer);
+  if(blinkResultFlashEl)blinkResultFlashEl.classList.add("hidden");
+
+  setTotalBlinkDetected(0);
+  updateMetrics();
+
+  setBlinkState({exerciseCount:0});
+
+  APP_STATE.gaze.sequence=[];
+  setGazeState({
+    stepIndex:0,
+    holdMs:0,
+    lastDirection:"",
+    lastVibeTs:0,
+    lastAnnouncedTarget:"",
+    smoothX:0,
+    smoothY:0,
+    emojiPupilX:0,
+    emojiPupilY:0,
+    stableDirection:"CENTER",
+    lastClassifiedDir:"CENTER",
+    lastScore:0,
+    nativeX:0,
+    nativeY:0,
+    nativeInit:false,
+  });
+  setAppState({lastDirectionTtsTs:0});
+
+  try{
+    if("speechSynthesis" in window)window.speechSynthesis.cancel();
+  }catch(_){ }
+
+  resetGazeCalibration();
+
+  setCircleState({active:false,followMs:0,endShown:false});
+  setAcuityState({active:false,round:0,score:0});
+
+  if(blinkCountLine)setText(blinkCountLine,COPY.blinkCount(0));
+  if(blinkTimeLine)setText(blinkTimeLine,COPY.timeLeft(20));
+  updateBlinkCornerTime(20);
+
+  setText(blinkMeta,"Ready");
+  setText(gazeMeta,"Ready");
+  if(circleMeta)setText(circleMeta,"Ready");
+  setText(focusMeta,"Ready");
+  setText(ruleMeta,"Waiting");
+  setText(acuityMeta,"Ready");
+
+  if(circleTrackArea)updateCircleTrackUi(0.45,0,0,0);
+
+  if(acuityFxEl){
+    acuityFxEl.classList.remove("show","ok","warn");
+    setText(acuityFxEl,"");
+  }
+  if(acuityCountFxEl){
+    acuityCountFxEl.classList.remove("show");
+    setText(acuityCountFxEl,"0 / 12");
+  }
+
+  setText(statusEl,APP_STATE.camera.running?UI_LABELS.statusRecognizing:UI_LABELS.statusIdle);
+}
+
+function acuityAngle(dir){
+  if(typeof acuityCore.angle==="function"){
+    return acuityCore.angle(dir);
+  }
+  return 180;
+}
 function showAcuityFx(ok,msg){
   if(!acuityFxEl)return;
   acuityFxEl.classList.remove("show","ok","warn");
@@ -501,7 +684,7 @@ function drawAcuityRound(){
   optotypeE.style.transform=`rotate(${acuityAngle(APP_STATE.acuity.direction)}deg)`;
 }
 function finishAcuityGame(success){
-  APP_STATE.acuity.active=false;
+  setAcuityState({active:false});
   if(APP_STATE.acuity.questionTimer)clearInterval(APP_STATE.acuity.questionTimer);
   APP_STATE.acuity.questionTimer=null;
   const total=12;
@@ -516,12 +699,12 @@ function finishAcuityGame(success){
   acuityMeta.innerHTML=`<span class="warn">미달성: 40초 내 12개를 맞추지 못했습니다 (${APP_STATE.acuity.score}/${total})</span>`;
 }
 function startAcuityGame(){
-  APP_STATE.acuity.active=true;APP_STATE.acuity.round=0;APP_STATE.acuity.score=0;APP_STATE.acuity.direction="UP";
+  setAcuityState({active:true,round:0,score:0,direction:"UP"});
   if(acuityPanel)acuityPanel.classList.remove("set-done-ok","set-done-warn");
   if(optotypeWrapEl)optotypeWrapEl.classList.remove("set-done-ok","set-done-warn");
   if(acuityFxEl){acuityFxEl.classList.remove("show","ok","warn");acuityFxEl.textContent="";}
   showAcuityCountFx(0,12);
-  APP_STATE.acuity.deadlineTs=Date.now()+40000;
+  setAcuityState({deadlineTs:Date.now()+40000});
   if(APP_STATE.acuity.questionTimer)clearInterval(APP_STATE.acuity.questionTimer);
   const tickAcuity=()=>{
     if(!APP_STATE.acuity.active)return;
@@ -529,26 +712,135 @@ function startAcuityGame(){
     updateAcuityMeta();
     if(remain<=0)finishAcuityGame(false);
   };
-  APP_STATE.acuity.questionTimer=timerManager?timerManager.setInterval("acuity-question",tickAcuity,120):setInterval(tickAcuity,120);
+  setAcuityState({questionTimer:timerManager?timerManager.setInterval("acuity-question",tickAcuity,120):setInterval(tickAcuity,120)});
   drawAcuityRound();
   updateAcuityMeta("시작");
 }
 function answerAcuity(answer){
-  if(!APP_STATE.acuity.active){acuityMeta.textContent="먼저 테스트를 시작하세요";return;}
+  if(!APP_STATE.acuity.active){
+    setText(acuityMeta,COPY.acuityNotStarted);
+    return;
+  }
+
   const correct=answer===APP_STATE.acuity.direction;
-  APP_STATE.acuity.round+=1;
-  if(correct)APP_STATE.acuity.score+=1;
+  const nextRound=APP_STATE.acuity.round+1;
+  const nextScore=correct?APP_STATE.acuity.score+1:APP_STATE.acuity.score;
+  setAcuityState({round:nextRound,score:nextScore});
+
   optotypeE.classList.remove("acuity-hit","acuity-miss");
   void optotypeE.offsetWidth;
   optotypeE.classList.add(correct?"acuity-hit":"acuity-miss");
+
   showAcuityCountFx(APP_STATE.acuity.score,12);
-  showAcuityFx(correct,correct?`정답 · ${APP_STATE.acuity.score}/12`:`오답 · ${APP_STATE.acuity.score}/12`);
-  if(APP_STATE.acuity.score>=12){finishAcuityGame(true);return;}
+  showAcuityFx(correct,(correct?COPY.correctFx:COPY.wrongFx)+APP_STATE.acuity.score+"/12");
+
+  if(APP_STATE.acuity.score>=12){
+    finishAcuityGame(true);
+    return;
+  }
+
   drawAcuityRound();
-  updateAcuityMeta(correct?"정답":"오답");
+  updateAcuityMeta(correct?COPY.correct:COPY.wrong);
 }
-async function startCamera(){if(APP_STATE.camera.running)return true;if(IS_NATIVE_WEBVIEW){setRunning(true);setPermissionHelp(false);statusEl.textContent="네이티브 카메라 연동 중";startCameraBtn.textContent="네이티브 카메라 실행 중";startCameraBtn.disabled=true;return true;}if(typeof Camera==="undefined"||typeof FaceMesh==="undefined"){statusEl.textContent="MediaPipe 로드 실패";return false;}statusEl.textContent="카메라 시작 중...";const camera=(typeof cameraOrchestrator.createCamera==="function")?cameraOrchestrator.createCamera(videoEl,async()=>{await faceMesh.send({image:videoEl});},640,480):new Camera(videoEl,{onFrame:async()=>{await faceMesh.send({image:videoEl});},width:640,height:480});try{await camera.start();setRunning(true);setPermissionHelp(false);statusEl.textContent="인식 중";startCameraBtn.textContent="카메라 실행 중";startCameraBtn.disabled=true;return true;}catch(err){const msg=String(err?.message||"");if(err?.name==="NotAllowedError"||/not allowed|denied/i.test(msg)){statusEl.textContent="카메라 권한이 거부되었습니다.";setPermissionHelp(true,getPermissionGuide());}else{statusEl.textContent="카메라를 시작할 수 없습니다. 권한/HTTPS 주소를 확인해 주세요.";setPermissionHelp(true,getPermissionGuide());}console.error(err);return false;}}
-async function startBlinkExercise(){if(!APP_STATE.camera.running){blinkMeta.textContent="카메라 시작 중...";const ok=await startCamera();if(!ok||!APP_STATE.camera.running){blinkMeta.textContent="카메라 권한을 허용한 뒤 다시 시도해 주세요";return;}}APP_STATE.blink.exerciseLocked=false;if(blinkPanel)blinkPanel.classList.remove("set-done-ok","set-done-warn");if(emojiFace)emojiFace.classList.remove("session-finish-pop","finish-ok","finish-warn","gaze-step-success");if(APP_STATE.blink.resultFlashTimer)clearTimeout(APP_STATE.blink.resultFlashTimer);if(blinkResultFlashEl)blinkResultFlashEl.classList.add("hidden");APP_STATE.blink.exerciseActive=true;APP_STATE.blink.exerciseCount=0;APP_STATE.blink.exerciseEndTs=Date.now()+20000;if(blinkCountLine)blinkCountLine.textContent="현재 횟수: 0회";if(blinkTimeLine)blinkTimeLine.textContent="남은 시간: 20초";updateBlinkCornerTime(20);blinkMeta.textContent="진행 중";if(APP_STATE.blink.exerciseTimer)clearInterval(APP_STATE.blink.exerciseTimer);const blinkTick=()=>{const sec=typeof blinkCore.remainSeconds==="function"?blinkCore.remainSeconds(APP_STATE.blink.exerciseEndTs,Date.now()):Math.max(0,Math.ceil((APP_STATE.blink.exerciseEndTs-Date.now())/1000));if(blinkTimeLine)blinkTimeLine.textContent=`남은 시간: ${sec}초`;updateBlinkCornerTime(sec);if(sec<=0){if(APP_STATE.blink.exerciseTimer)clearInterval(APP_STATE.blink.exerciseTimer);APP_STATE.blink.exerciseTimer=null;APP_STATE.blink.exerciseActive=false;APP_STATE.blink.exerciseLocked=true;const ok=typeof blinkCore.isGoalMet==="function"?blinkCore.isGoalMet(APP_STATE.blink.exerciseCount,12):APP_STATE.blink.exerciseCount>=12;triggerBlinkCompleteFx(ok,APP_STATE.blink.exerciseCount);return;}};APP_STATE.blink.exerciseTimer=timerManager?timerManager.setInterval("blink-exercise",blinkTick,200):setInterval(blinkTick,200);}
+
+async function startCamera(){
+  if(APP_STATE.camera.running)return true;
+
+  if(IS_NATIVE_WEBVIEW){
+    setRunning(true);
+    setPermissionHelp(false);
+    setText(statusEl,UI_LABELS.statusNativeRecognizing);
+    setText(startCameraBtn,UI_LABELS.statusNativeRecognizing);
+    startCameraBtn.disabled=true;
+    return true;
+  }
+
+  if(typeof Camera==="undefined"||typeof FaceMesh==="undefined"){
+    setText(statusEl,COPY.mediapipeLoadFailed);
+    return false;
+  }
+
+  setText(statusEl,COPY.cameraStarting);
+
+  const onFrame=async()=>{await faceMesh.send({image:videoEl});};
+  const camera=(typeof cameraOrchestrator.createCamera==="function")
+    ? cameraOrchestrator.createCamera(videoEl,onFrame,640,480)
+    : new Camera(videoEl,{onFrame:onFrame,width:640,height:480});
+
+  try{
+    await camera.start();
+    setRunning(true);
+    setPermissionHelp(false);
+    setText(statusEl,UI_LABELS.statusRecognizing);
+    setText(startCameraBtn,COPY.cameraRunning);
+    startCameraBtn.disabled=true;
+    return true;
+  }catch(err){
+    const msg=String(err?.message||"");
+    if(err?.name==="NotAllowedError"||/not allowed|denied/i.test(msg)){
+      setText(statusEl,COPY.cameraPermissionDenied);
+      setPermissionHelp(true,getPermissionGuide());
+    }else{
+      setText(statusEl,COPY.cameraStartFailed);
+      setPermissionHelp(true,getPermissionGuide());
+    }
+    console.error(err);
+    return false;
+  }
+}
+
+async function startBlinkExercise(){
+  if(!APP_STATE.camera.running){
+    setText(blinkMeta,COPY.cameraStarting);
+    const ok=await startCamera();
+    if(!ok||!APP_STATE.camera.running){
+      setText(blinkMeta,COPY.allowCameraAndRetry);
+      return;
+    }
+  }
+
+  setBlinkState({exerciseLocked:false});
+
+  if(blinkPanel)blinkPanel.classList.remove("set-done-ok","set-done-warn");
+  if(emojiFace)emojiFace.classList.remove("session-finish-pop","finish-ok","finish-warn","gaze-step-success");
+
+  if(APP_STATE.blink.resultFlashTimer)clearTimeout(APP_STATE.blink.resultFlashTimer);
+  if(blinkResultFlashEl)blinkResultFlashEl.classList.add("hidden");
+
+  setBlinkState({exerciseActive:true,exerciseCount:0,exerciseEndTs:Date.now()+20000});
+
+  if(blinkCountLine)setText(blinkCountLine,COPY.blinkCount(0));
+  if(blinkTimeLine)setText(blinkTimeLine,COPY.timeLeft(20));
+  updateBlinkCornerTime(20);
+  setText(blinkMeta,COPY.inProgress);
+
+  if(APP_STATE.blink.exerciseTimer)clearInterval(APP_STATE.blink.exerciseTimer);
+
+  const blinkTick=()=>{
+    const sec=typeof blinkCore.remainSeconds==="function"
+      ? blinkCore.remainSeconds(APP_STATE.blink.exerciseEndTs,Date.now())
+      : Math.max(0,Math.ceil((APP_STATE.blink.exerciseEndTs-Date.now())/1000));
+
+    if(blinkTimeLine)setText(blinkTimeLine,COPY.timeLeft(sec));
+    updateBlinkCornerTime(sec);
+
+    if(sec>0)return;
+
+    if(APP_STATE.blink.exerciseTimer)clearInterval(APP_STATE.blink.exerciseTimer);
+    setBlinkState({exerciseTimer:null,exerciseActive:false,exerciseLocked:true});
+
+    const ok=typeof blinkCore.isGoalMet==="function"
+      ? blinkCore.isGoalMet(APP_STATE.blink.exerciseCount,12)
+      : APP_STATE.blink.exerciseCount>=12;
+    triggerBlinkCompleteFx(ok,APP_STATE.blink.exerciseCount);
+  };
+
+  const exerciseTimer=timerManager
+    ? timerManager.setInterval("blink-exercise",blinkTick,200)
+    : setInterval(blinkTick,200);
+  setBlinkState({exerciseTimer});
+}
+
 function makeGazeSequence(){return typeof logic.makeGazeSequence==="function"?logic.makeGazeSequence(Math.random,10):["LEFT","RIGHT","UP","DOWN","LEFT","RIGHT","UP","DOWN","LEFT","RIGHT"];} 
 function dirLabel(dir){return typeof logic.dirLabel==="function"?logic.dirLabel(dir):"정면";} 
 function isDirectionMatch(dir,gaze){return typeof logic.isDirectionMatch==="function"?logic.isDirectionMatch(dir,gaze,GAZE_CFG):false;} 
@@ -676,18 +968,130 @@ async function requestGazeRecalibration(){
     }
   }
   clearGazeCalibrationStorage();
-  APP_STATE.gaze.exerciseActive=true;
-  APP_STATE.gaze.stepIndex=0;
-  APP_STATE.gaze.holdMs=0;
-  APP_STATE.gaze.lastTs=performance.now();
-  APP_STATE.gaze.lastAnnouncedTarget="";
-  APP_STATE.gaze.lastClassifiedDir="CENTER";
-  APP_STATE.gaze.lastScore=0;
+  setGazeState({exerciseActive:true});
+  setGazeState({stepIndex:0});
+  setGazeState({holdMs:0});
+  setGazeState({lastTs:performance.now()});
+  setGazeState({lastAnnouncedTarget:""});
+  setGazeState({lastClassifiedDir:"CENTER"});
+  setGazeState({lastScore:0});
   beginGazeCalibration();
 }
-function triggerGazeStepSuccessFx(){if(!emojiFace)return;emojiFace.classList.remove("gaze-step-success");void emojiFace.offsetWidth;emojiFace.classList.add("gaze-step-success");if(APP_STATE.gaze.stepFxTimer)clearTimeout(APP_STATE.gaze.stepFxTimer);if(timerManager){APP_STATE.gaze.stepFxTimer=timerManager.setTimeout("gaze-step-fx",()=>emojiFace.classList.remove("gaze-step-success"),520);}else{APP_STATE.gaze.stepFxTimer=setTimeout(()=>emojiFace.classList.remove("gaze-step-success"),520);}const ua=navigator.userAgent||"";const isMobile=/Android|iPhone|iPad|iPod/i.test(ua);if(isMobile&&navigator.vibrate)navigator.vibrate(40);}
-async function startGazeExercise(){ensureDirectionAudio();if(!APP_STATE.camera.running){gazeMeta.textContent="카메라 시작 중...";const ok=await startCamera();if(!ok||!APP_STATE.camera.running){gazeMeta.textContent="카메라 권한을 허용한 뒤 다시 시도해 주세요";return;}}APP_STATE.gaze.exerciseActive=true;APP_STATE.gaze.sequence=makeGazeSequence();APP_STATE.gaze.stepIndex=0;APP_STATE.gaze.holdMs=0;APP_STATE.gaze.lastTs=performance.now();APP_STATE.gaze.lastDirection="";APP_STATE.gaze.lastVibeTs=0;APP_STATE.gaze.neutralX=0;APP_STATE.gaze.neutralY=0;APP_STATE.gaze.neutralReady=true;APP_STATE.gaze.smoothX=0;APP_STATE.gaze.smoothY=0;APP_STATE.gaze.emojiPupilX=0;APP_STATE.gaze.emojiPupilY=0;APP_STATE.gaze.lastAnnouncedTarget="";APP_STATE.gaze.stableDirection="정면";APP_STATE.gaze.lastClassifiedDir="CENTER";APP_STATE.gaze.lastScore=0;const cachedMap=loadGazeCalibrationFromStorage();if(cachedMap){APP_STATE.gaze.calibrationMap=cachedMap;APP_STATE.gaze.calibrated=true;resetGazeCalibration();gazeMeta.textContent=`저장된 보정값 적용됨 · 방향: ${dirLabel(APP_STATE.gaze.sequence[0])} 유지 0.00/3.00초 (1/10)`;speakDirectionCue(APP_STATE.gaze.sequence[0]);APP_STATE.gaze.lastAnnouncedTarget=APP_STATE.gaze.sequence[0];return;}beginGazeCalibration();}
-function updateGazeExercise(gaze){if(!APP_STATE.gaze.exerciseActive||APP_STATE.gaze.stepIndex>=APP_STATE.gaze.sequence.length)return;const now=performance.now(),dt=clamp(now-APP_STATE.gaze.lastTs,0,120);APP_STATE.gaze.lastTs=now;const adjusted={x:gaze.x*GAZE_CFG.gain.x,y:gaze.y*GAZE_CFG.gain.y};if(APP_STATE.gaze.calibrating){const done=updateGazeCalibration(adjusted,dt);if(!done)return;APP_STATE.gaze.holdMs=0;APP_STATE.gaze.stepIndex=0;gazeMeta.textContent=`방향: ${dirLabel(APP_STATE.gaze.sequence[0])} 유지 0.00/3.00초 (1/10)`;speakDirectionCue(APP_STATE.gaze.sequence[0]);APP_STATE.gaze.lastAnnouncedTarget=APP_STATE.gaze.sequence[0];return;}const target=APP_STATE.gaze.sequence[APP_STATE.gaze.stepIndex];if(target!==APP_STATE.gaze.lastAnnouncedTarget){speakDirectionCue(target);APP_STATE.gaze.lastAnnouncedTarget=target;}const matched=APP_STATE.gaze.calibrated?isDirectionMatchCalibrated(target,adjusted):isDirectionMatch(target,adjusted);if(matched)APP_STATE.gaze.holdMs+=dt;const hold=(APP_STATE.gaze.holdMs/1000).toFixed(2);const detectedLabel=calibrationLabel(APP_STATE.gaze.lastClassifiedDir||"CENTER");gazeMeta.textContent=`방향: ${dirLabel(target)} 유지 ${hold}/3.00초 (${APP_STATE.gaze.stepIndex+1}/10) | 인식: ${detectedLabel}`;if(APP_STATE.gaze.holdMs>=3000){triggerGazeStepSuccessFx();APP_STATE.gaze.stepIndex+=1;APP_STATE.gaze.holdMs=0;if(APP_STATE.gaze.stepIndex>=APP_STATE.gaze.sequence.length){APP_STATE.gaze.exerciseActive=false;gazeMeta.innerHTML=`<span class="ok">완료: 시선 운동 10단계 성공</span>`;return;}gazeMeta.textContent=`방향: ${dirLabel(APP_STATE.gaze.sequence[APP_STATE.gaze.stepIndex])} 유지 0.00/3.00초 (${APP_STATE.gaze.stepIndex+1}/10)`;}}
+function triggerGazeStepSuccessFx(){
+  if(!emojiFace)return;
+
+  emojiFace.classList.remove("gaze-step-success");
+  void emojiFace.offsetWidth;
+  emojiFace.classList.add("gaze-step-success");
+
+  if(APP_STATE.gaze.stepFxTimer)clearTimeout(APP_STATE.gaze.stepFxTimer);
+  if(timerManager){
+    APP_STATE.gaze.stepFxTimer=timerManager.setTimeout("gaze-step-fx",()=>emojiFace.classList.remove("gaze-step-success"),520);
+  }else{
+    APP_STATE.gaze.stepFxTimer=setTimeout(()=>emojiFace.classList.remove("gaze-step-success"),520);
+  }
+
+  const ua=navigator.userAgent||"";
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(ua);
+  if(isMobile&&navigator.vibrate)navigator.vibrate(40);
+}
+async function startGazeExercise(){
+  ensureDirectionAudio();
+
+  if(!APP_STATE.camera.running){
+    setText(gazeMeta,COPY.cameraStarting);
+    const ok=await startCamera();
+    if(!ok||!APP_STATE.camera.running){
+      setText(gazeMeta,COPY.allowCameraAndRetry);
+      return;
+    }
+  }
+
+  setGazeState({exerciseActive:true});
+  APP_STATE.gaze.sequence=makeGazeSequence();
+  setGazeState({
+    stepIndex:0,
+    holdMs:0,
+    lastTs:performance.now(),
+    lastDirection:"",
+    lastVibeTs:0,
+    neutralX:0,
+    neutralY:0,
+    neutralReady:true,
+    smoothX:0,
+    smoothY:0,
+    emojiPupilX:0,
+    emojiPupilY:0,
+    lastAnnouncedTarget:"",
+    stableDirection:"CENTER",
+    lastClassifiedDir:"CENTER",
+    lastScore:0,
+  });
+
+  const cachedMap=loadGazeCalibrationFromStorage();
+  if(cachedMap){
+    APP_STATE.gaze.calibrationMap=cachedMap;
+    APP_STATE.gaze.calibrated=true;
+    resetGazeCalibration();
+    setText(gazeMeta,"In progress · first target: "+dirLabel(APP_STATE.gaze.sequence[0])+" · 0.00/3.00s (1/10)");
+    speakDirectionCue(APP_STATE.gaze.sequence[0]);
+    setGazeState({lastAnnouncedTarget:APP_STATE.gaze.sequence[0]});
+    return;
+  }
+
+  beginGazeCalibration();
+}
+
+function updateGazeExercise(gaze){
+  if(!APP_STATE.gaze.exerciseActive||APP_STATE.gaze.stepIndex>=APP_STATE.gaze.sequence.length)return;
+
+  const now=performance.now();
+  const dt=clamp(now-APP_STATE.gaze.lastTs,0,120);
+  setGazeState({lastTs:now});
+
+  const adjusted={x:gaze.x*GAZE_CFG.gain.x,y:gaze.y*GAZE_CFG.gain.y};
+
+  if(APP_STATE.gaze.calibrating){
+    const done=updateGazeCalibration(adjusted,dt);
+    if(!done)return;
+
+    setGazeState({holdMs:0,stepIndex:0,lastAnnouncedTarget:APP_STATE.gaze.sequence[0]});
+    setText(gazeMeta,"Target: "+dirLabel(APP_STATE.gaze.sequence[0])+" · 0.00/3.00s (1/10)");
+    speakDirectionCue(APP_STATE.gaze.sequence[0]);
+    return;
+  }
+
+  const target=APP_STATE.gaze.sequence[APP_STATE.gaze.stepIndex];
+  if(target!==APP_STATE.gaze.lastAnnouncedTarget){
+    speakDirectionCue(target);
+    setGazeState({lastAnnouncedTarget:target});
+  }
+
+  const matched=APP_STATE.gaze.calibrated
+    ? isDirectionMatchCalibrated(target,adjusted)
+    : isDirectionMatch(target,adjusted);
+
+  if(matched)setGazeState({holdMs:APP_STATE.gaze.holdMs+dt});
+
+  const hold=(APP_STATE.gaze.holdMs/1000).toFixed(2);
+  const detectedLabel=calibrationLabel(APP_STATE.gaze.lastClassifiedDir||"CENTER");
+  setText(gazeMeta,"Target: "+dirLabel(target)+" · "+hold+"/3.00s ("+(APP_STATE.gaze.stepIndex+1)+"/10) | Detected: "+detectedLabel);
+
+  if(APP_STATE.gaze.holdMs<3000)return;
+
+  triggerGazeStepSuccessFx();
+  const nextStep=APP_STATE.gaze.stepIndex+1;
+  setGazeState({stepIndex:nextStep,holdMs:0});
+
+  if(nextStep>=APP_STATE.gaze.sequence.length){
+    setGazeState({exerciseActive:false});
+    setHtml(gazeMeta,'<span class="ok">'+COPY.gazeDone+'</span>');
+    return;
+  }
+
+  setText(gazeMeta,"Target: "+dirLabel(APP_STATE.gaze.sequence[nextStep])+" · 0.00/3.00s ("+(nextStep+1)+"/10)");
+}
+
 function updateCircleTrackUi(targetX,targetY,cursorX,cursorY){
   if(!circleTrackArea||!circleTarget||!circleCursor)return;
   const toPct=(v)=>`${(50+clamp(v,-1,1)*38).toFixed(2)}%`;
@@ -698,54 +1102,78 @@ function updateCircleTrackUi(targetX,targetY,cursorX,cursorY){
 }
 async function startCircleExercise(){
   if(!APP_STATE.camera.running){
-    if(circleMeta)circleMeta.textContent="카메라 시작 중...";
+    if(circleMeta)setText(circleMeta,COPY.cameraStarting);
     const ok=await startCamera();
     if(!ok||!APP_STATE.camera.running){
-      if(circleMeta)circleMeta.textContent="카메라 권한을 허용한 뒤 다시 시도해 주세요";
+      if(circleMeta)setText(circleMeta,COPY.allowCameraAndRetry);
       return;
     }
   }
-  APP_STATE.circle.active=true;
-  APP_STATE.circle.startTs=performance.now();
-  APP_STATE.circle.lastTs=APP_STATE.circle.startTs;
-  APP_STATE.circle.followMs=0;
-  APP_STATE.circle.endShown=false;
-  APP_STATE.circle.targetX=0.45;
-  APP_STATE.circle.targetY=0;
+
+  const now=performance.now();
+  setCircleState({
+    active:true,
+    startTs:now,
+    lastTs:now,
+    followMs:0,
+    endShown:false,
+    targetX:0.45,
+    targetY:0,
+  });
+
   if(circlePanel)circlePanel.classList.remove("set-done-ok","set-done-warn");
   updateCircleTrackUi(APP_STATE.circle.targetX,APP_STATE.circle.targetY,0,0);
-  if(circleMeta)circleMeta.textContent="진행 중 · 원형 타겟을 눈으로 따라가세요";
+  if(circleMeta)setText(circleMeta,"In progress · follow the circular target");
 }
+
 function updateCircleExercise(adjustedGaze){
   if(!APP_STATE.circle.active)return;
+
   const now=performance.now();
   const elapsed=now-APP_STATE.circle.startTs;
   const dt=clamp(now-APP_STATE.circle.lastTs,0,120);
-  APP_STATE.circle.lastTs=now;
+
   const angle=elapsed*(Math.PI*2/8000);
-  APP_STATE.circle.targetX=Math.cos(angle)*0.46;
-  APP_STATE.circle.targetY=Math.sin(angle)*0.34;
+  const targetX=Math.cos(angle)*0.46;
+  const targetY=Math.sin(angle)*0.34;
+
   const cursorX=clamp(adjustedGaze.x,-1,1);
   const cursorY=clamp(adjustedGaze.y,-1,1);
-  const dx=cursorX-APP_STATE.circle.targetX,dy=cursorY-APP_STATE.circle.targetY;
+
+  const dx=cursorX-targetX;
+  const dy=cursorY-targetY;
   const d=Math.sqrt(dx*dx+dy*dy);
-  if(d<=APP_STATE.circle.threshold)APP_STATE.circle.followMs+=dt;
+  const followMs=(d<=APP_STATE.circle.threshold)?(APP_STATE.circle.followMs+dt):APP_STATE.circle.followMs;
+
+  setCircleState({lastTs:now,targetX:targetX,targetY:targetY,followMs:followMs});
+
   const remain=Math.max(0,Math.ceil((APP_STATE.circle.durationMs-elapsed)/1000));
   const acc=(APP_STATE.circle.followMs/Math.max(1,elapsed))*100;
+
   updateCircleTrackUi(APP_STATE.circle.targetX,APP_STATE.circle.targetY,cursorX,cursorY);
-  if(circleMeta)circleMeta.textContent=`진행 중 · 추적 정확도 ${acc.toFixed(0)}% · 남은 ${remain}초`;
+  if(circleMeta)setText(circleMeta,"In progress · accuracy "+acc.toFixed(0)+"% · "+remain+"s left");
+
   if(elapsed<APP_STATE.circle.durationMs)return;
-  APP_STATE.circle.active=false;
+
+  setCircleState({active:false});
   if(APP_STATE.circle.endShown)return;
-  APP_STATE.circle.endShown=true;
+  setCircleState({endShown:true});
+
   const ok=acc>=55;
   if(circlePanel){
     circlePanel.classList.remove("set-done-ok","set-done-warn");
     void circlePanel.offsetWidth;
     circlePanel.classList.add(ok?"set-done-ok":"set-done-warn");
   }
-  if(circleMeta)circleMeta.innerHTML=ok?`<span class="ok">완료 · 추적 정확도 ${acc.toFixed(0)}%</span>`:`<span class="warn">완료 · 추적 정확도 ${acc.toFixed(0)}% (다시 도전해 보세요)</span>`;
+
+  if(circleMeta){
+    setHtml(circleMeta,ok
+      ? '<span class="ok">Done · accuracy '+acc.toFixed(0)+'%</span>'
+      : '<span class="warn">Done · accuracy '+acc.toFixed(0)+'% (try again)</span>'
+    );
+  }
 }
+
 function speakFocusCue(text){
   try{
     if(!("speechSynthesis" in window))return;
@@ -801,7 +1229,28 @@ function startFocusRoutine(){
   focusTimer=timerManager?timerManager.setInterval("focus-step",stepFocus,10000):setInterval(stepFocus,10000);
   focusTick=timerManager?timerManager.setInterval("focus-tick",tickFocus,300):setInterval(tickFocus,300);
 }
-function startRuleReminder(intervalMs){if(ruleInterval)clearInterval(ruleInterval);if(ruleTick)clearInterval(ruleTick);const updateCountdown=()=>{const sec=Math.max(0,Math.ceil((ruleTargetTs-Date.now())/1000));ruleMeta.textContent=`다음 알림까지 ${formatMMSS(sec)}`;};const scheduleNext=()=>{ruleTargetTs=Date.now()+intervalMs;updateCountdown();};scheduleNext();ruleTick=setInterval(updateCountdown,1000);ruleInterval=setInterval(()=>{alert("20-20-20 휴식: 20피트(약 6m) 거리 물체를 20초간 바라보세요.");scheduleNext();},intervalMs);} 
+function startRuleReminder(intervalMs){
+  if(ruleInterval)clearInterval(ruleInterval);
+  if(ruleTick)clearInterval(ruleTick);
+
+  const updateCountdown=()=>{
+    const sec=Math.max(0,Math.ceil((ruleTargetTs-Date.now())/1000));
+    setText(ruleMeta,COPY.nextBreak(formatMMSS(sec)));
+  };
+
+  const scheduleNext=()=>{
+    ruleTargetTs=Date.now()+intervalMs;
+    updateCountdown();
+  };
+
+  scheduleNext();
+  ruleTick=setInterval(updateCountdown,1000);
+  ruleInterval=setInterval(()=>{
+    alert(COPY.ruleAlert);
+    scheduleNext();
+  },intervalMs);
+}
+
 const IS_NATIVE_WEBVIEW=typeof window!=="undefined"&&window.__NATIVE_SOURCE__==="react-native-webview";
 let nativeFrameTs=0;
 function applyNativeGazeFrame(frame){
@@ -860,13 +1309,76 @@ const faceMesh=(typeof cameraOrchestrator.createFaceMesh==="function")
 if(typeof cameraOrchestrator.createFaceMesh!=="function"){
   faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.55,minTrackingConfidence:.55});
 }
-faceMesh.onResults((results)=>{if(IS_NATIVE_WEBVIEW&&Date.now()-nativeFrameTs<2500){return;}if(!results.multiFaceLandmarks||results.multiFaceLandmarks.length===0){setFaceVisible(false);gazeTextEl.textContent="시선 방향: -";clearOverlay();return;}setFaceVisible(true);const landmarks=results.multiFaceLandmarks[0];drawIrisGuides(landmarks);const leftEar=ear(landmarks,LEFT_EYE),rightEar=ear(landmarks,RIGHT_EYE),avgEar=(leftEar+rightEar)/2;if(!baselineEar)baselineEar=avgEar;else baselineEar=baselineEar*.96+avgEar*.04;updateThresholdsFromBaseline();const rawGaze=estimateGaze(landmarks),smoothed=smoothGaze(rawGaze),gaze=applyViewTransformToGaze(smoothed),adjusted={x:gaze.x*GAZE_CFG.gain.x,y:gaze.y*GAZE_CFG.gain.y};if(APP_STATE.app.currentGame==="gaze"||APP_STATE.app.currentGame==="circle")moveEmojiPupils(adjusted);let direction=gazeDirection(adjusted);if((APP_STATE.app.currentGame==="gaze"||APP_STATE.app.currentGame==="circle")&&APP_STATE.gaze.calibrated&&APP_STATE.gaze.calibrationMap){const cls=classifyCalibratedDirection(adjusted);APP_STATE.gaze.lastClassifiedDir=cls.dir;APP_STATE.gaze.lastScore=cls.score;direction=calibrationLabel(cls.dir);}gazeTextEl.textContent=`시선 방향: ${direction}`;if(APP_STATE.app.currentGame==="gaze"||APP_STATE.app.currentGame==="circle")vibrateOnGazeDirectionChange(direction);updateGazeExercise(gaze);if(APP_STATE.app.currentGame==="circle")updateCircleExercise(adjusted);if(APP_STATE.app.currentGame==="blink"){if(!blinkCooldown&&!isClosed&&avgEar<closedThreshold){isClosed=true;setEmojiClosed(true);}else if(isClosed&&avgEar>openThreshold){isClosed=false;setEmojiClosed(false);blinkCooldown=true;onBlinkDetected();setTimeout(()=>{blinkCooldown=false;},COOLDOWN_MS);}}statusEl.textContent="인식 중";});
+function handleFaceMeshResults(results){
+  if(IS_NATIVE_WEBVIEW&&Date.now()-nativeFrameTs<2500){
+    return;
+  }
+
+  if(!results.multiFaceLandmarks||results.multiFaceLandmarks.length===0){
+    setFaceVisible(false);
+    gazeTextEl.textContent=`${UI_LABELS.gazeDirectionPrefix}: -`;
+    clearOverlay();
+    return;
+  }
+
+  setFaceVisible(true);
+  const landmarks=results.multiFaceLandmarks[0];
+  drawIrisGuides(landmarks);
+
+  const leftEar=ear(landmarks,LEFT_EYE);
+  const rightEar=ear(landmarks,RIGHT_EYE);
+  const avgEar=(leftEar+rightEar)/2;
+
+  if(!baselineEar)baselineEar=avgEar;
+  else baselineEar=baselineEar*.96+avgEar*.04;
+  updateThresholdsFromBaseline();
+
+  const rawGaze=estimateGaze(landmarks);
+  const smoothed=smoothGaze(rawGaze);
+  const gaze=applyViewTransformToGaze(smoothed);
+  const adjusted={x:gaze.x*GAZE_CFG.gain.x,y:gaze.y*GAZE_CFG.gain.y};
+  const isGazeOrCircle=APP_STATE.app.currentGame==="gaze"||APP_STATE.app.currentGame==="circle";
+
+  if(isGazeOrCircle)moveEmojiPupils(adjusted);
+
+  let direction=gazeDirection(adjusted);
+  if(isGazeOrCircle&&APP_STATE.gaze.calibrated&&APP_STATE.gaze.calibrationMap){
+    const cls=classifyCalibratedDirection(adjusted);
+    APP_STATE.gaze.lastClassifiedDir=cls.dir;
+    APP_STATE.gaze.lastScore=cls.score;
+    direction=calibrationLabel(cls.dir);
+  }
+
+  gazeTextEl.textContent=`${UI_LABELS.gazeDirectionPrefix}: ${direction}`;
+  if(isGazeOrCircle)vibrateOnGazeDirectionChange(direction);
+
+  updateGazeExercise(gaze);
+  if(APP_STATE.app.currentGame==="circle")updateCircleExercise(adjusted);
+
+  if(APP_STATE.app.currentGame==="blink"){
+    if(!blinkCooldown&&!isClosed&&avgEar<closedThreshold){
+      isClosed=true;
+      setEmojiClosed(true);
+    }else if(isClosed&&avgEar>openThreshold){
+      isClosed=false;
+      setEmojiClosed(false);
+      blinkCooldown=true;
+      onBlinkDetected();
+      setTimeout(()=>{blinkCooldown=false;},COOLDOWN_MS);
+    }
+  }
+
+  statusEl.textContent=UI_LABELS.statusRecognizing;
+}
+
+faceMesh.onResults(handleFaceMeshResults);
 const APP_RUNTIME={listeners:[],initialized:false};
 function on(target,type,handler,options){
   if(!target||typeof target.addEventListener!=="function")return;
   target.addEventListener(type,handler,options);
   APP_RUNTIME.listeners.push(()=>target.removeEventListener(type,handler,options));
 }
+// App lifecycle binding
 function bindAppEvents(){
   document.querySelectorAll(".menu-btn[data-game]").forEach((btn)=>{
     on(btn,"click",()=>enterGame(btn.dataset.game));
@@ -919,5 +1431,14 @@ function initApp(){
 }
 
 initApp();
+
+
+
+
+
+
+
+
+
 
 
