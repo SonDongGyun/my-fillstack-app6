@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>���ǰ� �÷���Ŵ��</title>
+<title>눈건강 시력지킴이</title>
 <style>
 :root{--b900:#0b3d91;--b700:#1459c2;--b500:#2e7be8;--b100:#eef6ff;--line:#cfe3ff;--ink:#112a4a;--muted:#45658d;--ok:#22895d;--warn:#ad6c00}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:radial-gradient(1100px 640px at 10% -10%,#fff 0%,#f3f9ff 45%,#e8f2ff 100%),linear-gradient(180deg,#f8fcff 0%,#eaf4ff 100%);padding:24px;overflow-x:hidden}
@@ -171,18 +171,229 @@
 <body>
 
 <main class="app">
-<section class="header"><div><h1 class="title">���ǰ� �÷���Ŵ��</h1><p class="subtitle">���ǰ� ������ �÷� ��� ����� UI�� �����մϴ�.</p></div><div class="auth-area"><a id="kakaoLoginBtn" class="auth-btn hidden" href="/auth/kakao/login">īī���� �����ϱ�</a><div id="authUserBox" class="auth-user hidden"><span id="authNickname" class="auth-name"></span><button id="logoutBtn" class="auth-logout" type="button">�α׾ƿ�</button></div></div></section>
-<section id="introView" class="view active"><div id="hero" class="intro-wrap reveal hero-pin" data-stage="1"><article><span class="intro-badge scroll-fade">EYE HEALTH APP</span><h2 class="intro-title">���� �δ��� ���̴� ������<br />� ������ �� ������</h2><p class="intro-copy">�� ���� ��Ȯ�� ���ǰ� ������ �����ϰ�, ī�޶� �ν� ��� ����� ���� �����, �ü� �̵�, ���� ���� �Ʒ��� �����ݴϴ�.</p><div class="intro-points"><div class="point">�ٰ� ��� ���ǰ� ���� ����</div><div class="point">��� ���� �̸����� ���ͷ���</div><div class="point">� ����Ʈ���� ���ϴ� �׸� ����</div></div><div class="cta-row"><button id="startAppBtn" class="primary-btn magnetic scroll-cta" data-scroll-cta="intro">� ����Ʈ ����</button><div class="cta-placeholder" data-cta-placeholder="intro"></div></div><div class="ticker"><div class="ticker-track"><span class="ticker-item">�� �Ƿ� ��ȭ ��ƾ ����</span><span class="ticker-item">20-20-20 �޽� ���� ��Ī</span><span class="ticker-item">�ǽ��� ��������� ������ ��ȭ</span><span class="ticker-item">���� ���� ��ȯ���� �� ���� �̿�</span><span class="ticker-item">ī�޶� ��� � Ʈ��ŷ</span><span class="ticker-item">�� �Ƿ� ��ȭ ��ƾ ����</span><span class="ticker-item">20-20-20 �޽� ���� ��Ī</span><span class="ticker-item">�ǽ��� ��������� ������ ��ȭ</span><span class="ticker-item">���� ���� ��ȯ���� �� ���� �̿�</span><span class="ticker-item">ī�޶� ��� � Ʈ��ŷ</span></div></div></article><article class="intro-visual"><div id="heroEmoji" class="optician-group" role="img" aria-label="3D ������Ʈ ĳ����"><div class="optician-3d-canvas-wrap"><canvas id="optician3dCanvas" class="optician-3d-canvas" aria-hidden="true"></canvas><div id="optician3dFallback" class="optician-3d-image-pair optician-3d-fallback"><img class="optician-3d-image" src="/static/davich_16x9.png" alt="3D ������Ʈ ĳ���� �̹���" /></div></div></div></article></div><div class="intro-sections"><div class="card app-intro-card"><h2>�� �Ұ�</h2><div class="info-item">���ǰ� �÷���Ŵ�̴� ��Ȯ�� ���ǰ� ������ ī�޶� ��� � ����� ������, �ϻ󿡼� ���� �����ϰ� �� ������� �����ϵ��� ���� �� �����Դϴ�.</div></div><div class="card reveal"><h2>�ٺ�ġ�Ȱ� �ֽ� ����</h2><div id="newsStatus" class="news-status">�ҷ����� ��...</div><ul id="davichNewsList" class="news-list"></ul></div><div class="card reveal"><h2>�ٷΰ��� ��ũ</h2><div class="market-links"><a class="menu-btn magnetic" href="https://www.davichmarket.com" target="_blank" rel="noopener noreferrer">�ٺ�ġ���� �� �ٷΰ���</a><a id="marketAppLink" class="menu-btn magnetic hidden" href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93" target="_blank" rel="noopener noreferrer">�ٺ�ġ���� �� �ٷΰ���</a></div></div><div class="card reveal"><h2>��� �Ұ�</h2><div class="info-item">�ߴٺ�ġ�Ȱ�ü���� �Ȱ桤����Ʈ���� �߽��� ���� �Ȱ�ü�� �귣���, ���� ���� ��Ʈ��ũ ����� ǥ��ȭ�� ���/�˾� ���񽺸� �����մϴ�. �ڼ��� ��� ������ <a href="https://davich.com/about/information" target="_blank" rel="noopener noreferrer">���� �Ұ� ������</a>���� Ȯ���� �� �ֽ��ϴ�.</div></div></div></section>
-<section id="homeView" class="view"><div class="home-top"><h2 class="title" style="font-size:1.05rem;">� ���� ����Ʈ</h2><button id="backIntroBtn" class="ghost-btn scroll-cta" data-scroll-cta="home">Ȩ ȭ������</button><div class="cta-placeholder" data-cta-placeholder="home"></div></div><div class="home-grid"><article class="card reveal"><h2>� ���� ����Ʈ</h2><div class="menu-list"><button class="menu-btn" data-game="blink">����� Ʈ���̳�<div class="menu-desc">���� ���Ҵ� �ߴ� ����� ���� �</div></button><button class="menu-btn" data-game="gaze">�ü� ���� �<div class="menu-desc">��/��/��/��/���� ��� ������ �ν����� ����</div></button><button class="menu-btn" data-game="circle">���� ���� �<div class="menu-desc">�����̴� ���� Ÿ���� ������ ���󰡴� �ü� ���� �</div></button><button class="menu-btn" data-game="focus">���� ���� ��ƾ<div class="menu-desc">����� ��/�� �� ���� ��ȯ 60�� ��ƾ</div></button><button class="menu-btn" data-game="rule202020">20-20-20 �˸�<div class="menu-desc">20�� ���� �޽� Ÿ�̸� ���</div></button><button class="menu-btn" data-game="acuity">�÷� ���� �׽�Ʈ<div class="menu-desc">ȸ���� E ������ ������ �÷� ���� ���� (������)</div></button></div></article><article class="card reveal"><h2>��Ȯ�� ���ǰ� ����</h2><div class="info-list"><div class="info-item">20-20-20 ��Ģ: 20�и��� 20��Ʈ(�� 6m) �Ÿ��� ��ü�� 20�� �ٶ󺸼���.<br />��ó: <a href="https://health.kdca.go.kr/healthinfo/" target="_blank" rel="noopener noreferrer">��������û �����ǰ���������</a></div><div class="info-item">ȭ���� ���� ���� �ǽ������� ���� ����� �������� �����ϰ�, �������̹����� ���ӵǸ� �Ȱ� ���Ḧ ��������.<br />��ó: <a href="https://www.ophthalmology.org/" target="_blank" rel="noopener noreferrer">���ѾȰ���ȸ</a></div><div class="info-item">����ʹ� �� ���� ���� �Ÿ�, ȭ�� ����� �����̺��� �ణ �Ʒ��� ���� ��ġ�ϼ���.<br />��ó: <a href="https://www.kosha.or.kr/kosha/business/ergonomics_e_h.do" target="_blank" rel="noopener noreferrer">�������ǰ���(KOSHA)</a></div></div></article></div></section>
-<section id="gameView" class="view"><div class="game-top"><div><h2 id="gameTitle" class="title" style="font-size:1.1rem;">����</h2><div id="gameDesc" class="subtitle">����</div></div><button id="backHomeBtn" class="ghost-btn scroll-cta" data-scroll-cta="game">� ����Ʈ�� ���ư���</button><div class="cta-placeholder" data-cta-placeholder="game"></div></div><div class="game-grid"><section class="emoji-wrap"><div id="blinkCornerTime" class="blink-corner-time hidden">���� 20��</div><div id="blinkResultFlash" class="blink-result-flash hidden" aria-hidden="true"></div><div id="emojiFace" class="emoji"><div class="eyes"><div id="leftEye" class="eye"><div id="leftPupil" class="pupil"></div></div><div id="rightEye" class="eye"><div id="rightPupil" class="pupil"></div></div></div><div class="blush left"></div><div class="blush right"></div><div class="nose"></div><div id="mouth" class="mouth"></div></div><img id="restGif" class="rest-gif hidden" src="/static/relax_rest.gif" alt="����� �޽� �̹���" /><div id="restCaption" class="rest-caption hidden">���� ���� �ð�</div><div id="blinkFloat" class="blink-float" aria-hidden="true"></div></section><section class="panel"><h3>� ��Ʈ��</h3><div id="previewWrap" class="preview-wrap hidden"><video id="video" class="camera-preview" autoplay playsinline muted></video><canvas id="gazeOverlay" class="gaze-overlay"></canvas></div><div id="status" class="status">��� ��</div><div id="earText" class="metric hidden">EAR: -</div><div id="blinkText" class="metric hidden">����� ����: 0ȸ</div><div id="gazeText" class="metric">�ü� ����: -</div><div class="ctrl-row"><button id="startCameraBtn" class="primary-btn hidden">ī�޶� ����</button><button id="resetStateBtn" class="secondary-btn hidden">� ���� �ʱ�ȭ</button></div>
-<div id="permissionHelp" class="permission-help hidden"><div class="permission-title">ī�޶� ������ �ʿ��մϴ�</div><div id="permissionText" class="permission-text">�������� ī�޶� ����� �� �ٽ� �õ��� �ּ���.</div></div>
-<div id="blinkPanel" class="panel hidden" style="margin-top:10px;"><h3>����� Ʈ���̳�</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">20�� ���� ������ ����� 12ȸ �̻��� ��ǥ�� �����մϴ�.</p><div id="blinkGoal" class="meta">��ǥ: 20�� / 12ȸ �̻�</div><div id="blinkCountLine" class="meta">���� Ƚ��: 0ȸ</div><div id="blinkTimeLine" class="meta">���� �ð�: 20��</div><div class="ctrl-row"><button id="blinkStartBtn" class="primary-btn">20�� ��Ʈ ����</button></div><div id="blinkMeta" class="meta">���� ��</div></div>
-<div id="gazePanel" class="panel hidden" style="margin-top:10px;"><h3>�ü� ���� �</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">���� ������ 3�� �����ϸ� ���� �������� �Ѿ�ϴ�.</p><div class="ctrl-row"><button id="gazeStartBtn" class="primary-btn">� ����</button><button id="gazeRecalibrateBtn" class="secondary-btn">�纸��</button></div><div id="gazeMeta" class="meta">���� ��</div></div><div id="circlePanel" class="panel hidden" style="margin-top:10px;"><h3>���� ���� �</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">�����̴� Ÿ���� ������ ���󰡼���. 30�� ���� ���� ��Ȯ���� ����մϴ�.</p><div class="meta" style="margin-top:6px;"><span style="color:#2f7cff;font-weight:800;">�Ķ���</span>: ��ǥ Ÿ�� �� <span style="color:#ff9f2f;font-weight:800;">��Ȳ��</span>: �� �ü�(����)</div><div id="circleTrackArea" class="circle-track-area"><div id="circleTarget" class="circle-target"></div><div id="circleCursor" class="circle-cursor"></div></div><div class="ctrl-row"><button id="circleStartBtn" class="primary-btn">���� ���� ����</button></div><div id="circleMeta" class="meta">���� ��</div></div>
-<div id="focusPanel" class="panel hidden" style="margin-top:10px;"><h3>���� ���� ��ƾ</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">����� ��ü 10�� / �� ��ü 10�ʸ� ������ 60�� �����մϴ�.</p><div class="ctrl-row"><button id="focusStartBtn" class="primary-btn">60�� ��ƾ ����</button></div><div id="focusMeta" class="meta">���� ��</div></div>
-<div id="rulePanel" class="panel hidden" style="margin-top:10px;"><h3>20-20-20 �˸�</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">20�� ���� �˸��� �����ϼ���.</p><div class="ctrl-row"><button id="ruleStartBtn" class="primary-btn">20�� �˸� ����</button><button id="ruleStopBtn" class="ghost-btn hidden">�˸� ����</button></div><div id="ruleMeta" class="meta">������</div></div>
-<div id="acuityPanel" class="panel hidden" style="margin-top:10px;"><h3>�÷� ���� �׽�Ʈ</h3><p style="margin:0;color:#34557f;font-size:0.86rem;">ȸ���� E�� ���� ����(�ٸ� ����)�� �����ϼ���. �ܰ谡 �ö󰥼��� ���ڰ� �۾����ϴ�.</p><div id="optotypeWrap" class="optotype-wrap"><div id="optotypeE" class="optotype-e">E</div><div id="acuityFirework" class="acuity-firework" aria-hidden="true"></div></div><div id="acuityFx" class="acuity-fx" aria-hidden="true"></div><div id="acuityCountFx" class="acuity-count-fx" aria-hidden="true">0 / 12</div><div class="ctrl-row"><button id="acuityStartBtn" class="primary-btn">�׽�Ʈ ����</button></div><div class="ctrl-row"><button id="acuityUpBtn" class="secondary-btn">��</button><button id="acuityRightBtn" class="secondary-btn">������</button><button id="acuityDownBtn" class="secondary-btn">�Ʒ�</button><button id="acuityLeftBtn" class="secondary-btn">����</button></div><div id="acuityMeta" class="meta">���� ��</div></div>
-</section></div></section>
-<section id="evidenceSummarySection" class="evidence-summary hidden"><h3 id="evidenceSummaryTitle">��� �ٰ� ���� ����</h3><p id="evidenceSummaryText">������ �����ϸ� �ش� ��� ���õ� ���� ������ ���� ǥ�õ˴ϴ�.</p></section><div class="notice">������ �����Դϴ�. ���� ����, ���۽����� �÷� ���ϰ� ������ �Ȱ� ���Ḧ ��������.</div>
+<section class="header">
+  <div>
+    <h1 class="title">??? ?????</h1>
+    <p class="subtitle">? ??? ?? ??? ? ??? ???? ????.</p>
+  </div>
+  <div class="auth-area">
+    <a id="kakaoLoginBtn" class="auth-btn hidden" href="/auth/kakao/login">???? ???</a>
+    <div id="authUserBox" class="auth-user hidden">
+      <span id="authNickname" class="auth-name"></span>
+      <button id="logoutBtn" class="auth-logout" type="button">????</button>
+    </div>
+  </div>
+</section>
+
+<section id="introView" class="view active">
+  <div id="hero" class="intro-wrap reveal hero-pin" data-stage="1">
+    <article>
+      <span class="intro-badge scroll-fade">EYE HEALTH APP</span>
+      <h2 class="intro-title">??? ? ??? ???<br />?? ?? ?? ??</h2>
+      <p class="intro-copy">??? ?? ?? ? ??? 20-20-20 ?? ???? ??? ???? ??? ???.</p>
+      <div class="intro-points">
+        <div class="point">???/??/?? ?? ??</div>
+        <div class="point">?? ??? ??? ??? ??</div>
+        <div class="point">???? ?? ?? ?? ??</div>
+      </div>
+      <div class="cta-row">
+        <button id="startAppBtn" class="primary-btn magnetic scroll-cta" data-scroll-cta="intro">?? ????</button>
+        <div class="cta-placeholder" data-cta-placeholder="intro"></div>
+      </div>
+      <div class="ticker">
+        <div class="ticker-track">
+          <span class="ticker-item">? ?? ?? ??</span>
+          <span class="ticker-item">20-20-20 ?? ??</span>
+          <span class="ticker-item">?? ??? ?? ??</span>
+          <span class="ticker-item">??? ?? ??? ???</span>
+          <span class="ticker-item">? ?? ?? ?? ???</span>
+          <span class="ticker-item">? ?? ?? ??</span>
+          <span class="ticker-item">20-20-20 ?? ??</span>
+          <span class="ticker-item">?? ??? ?? ??</span>
+          <span class="ticker-item">??? ?? ??? ???</span>
+          <span class="ticker-item">? ?? ?? ?? ???</span>
+        </div>
+      </div>
+    </article>
+    <article class="intro-visual">
+      <div id="heroEmoji" class="optician-group" role="img" aria-label="??? ???">
+        <div class="optician-3d-canvas-wrap">
+          <canvas id="optician3dCanvas" class="optician-3d-canvas" aria-hidden="true"></canvas>
+          <div id="optician3dFallback" class="optician-3d-image-pair optician-3d-fallback">
+            <img class="optician-3d-image" src="/static/davich_16x9.png" alt="??? ?? ???" />
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="intro-sections">
+    <div class="card app-intro-card">
+      <h2>? ??</h2>
+      <div class="info-item">??? ? ??? ?? ??? ?? ??? ???? ?? ?? ???? ????? ????.</div>
+    </div>
+    <div class="card reveal">
+      <h2>????? ?? ??</h2>
+      <div id="newsStatus" class="news-status">???? ?...</div>
+      <ul id="davichNewsList" class="news-list"></ul>
+    </div>
+    <div class="card reveal">
+      <h2>????</h2>
+      <div class="market-links">
+        <a class="menu-btn magnetic" href="https://www.davichmarket.com" target="_blank" rel="noopener noreferrer">????? ??</a>
+        <a id="marketAppLink" class="menu-btn magnetic hidden" href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93" target="_blank" rel="noopener noreferrer">????? ?</a>
+      </div>
+    </div>
+    <div class="card reveal">
+      <h2>?? ??</h2>
+      <div class="info-item">???????? ???? ??/?? ???? ???? ?? ?? ??????.</div>
+    </div>
+  </div>
+</section>
+
+<section id="homeView" class="view">
+  <div class="home-top">
+    <h2 class="title" style="font-size:1.05rem;">?? ??</h2>
+    <button id="backIntroBtn" class="ghost-btn scroll-cta" data-scroll-cta="home">??? ????</button>
+    <div class="cta-placeholder" data-cta-placeholder="home"></div>
+  </div>
+  <div class="home-grid">
+    <article class="card reveal">
+      <h2>?? ??</h2>
+      <div class="menu-list">
+        <button class="menu-btn" data-game="blink">??? ????<div class="menu-desc">? ??/?? ?? ??</div></button>
+        <button class="menu-btn" data-game="gaze">?? ?? ??<div class="menu-desc">?/?/?/? ?? ?? ??</div></button>
+        <button class="menu-btn" data-game="circle">?? ?? ??<div class="menu-desc">???? ??? ???? ?? ??</div></button>
+        <button class="menu-btn" data-game="focus">?? ?? ??<div class="menu-desc">??? ?/? ? ??? ?? ??</div></button>
+        <button class="menu-btn" data-game="rule202020">20-20-20 ??<div class="menu-desc">20??? ?? ?? ???</div></button>
+        <button class="menu-btn" data-game="acuity">?? ?? ???<div class="menu-desc">E ?? ??? ?? ??</div></button>
+      </div>
+    </article>
+    <article class="card reveal">
+      <h2>? ?? ???</h2>
+      <div class="info-list">
+        <div class="info-item">20??? 20? ?? 6m ?? ? ?? ???? 20-20-20 ??? ?????.</div>
+        <div class="info-item">???? ???? ??? ??? ??? ???.</div>
+        <div class="info-item">???? ????? ?? ??? ??, ??? ??? ?????.</div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section id="gameView" class="view">
+  <div class="game-top">
+    <div>
+      <h2 id="gameTitle" class="title" style="font-size:1.1rem;">??</h2>
+      <div id="gameDesc" class="subtitle">?? ??</div>
+    </div>
+    <button id="backHomeBtn" class="ghost-btn scroll-cta" data-scroll-cta="game">?? ???</button>
+    <div class="cta-placeholder" data-cta-placeholder="game"></div>
+  </div>
+
+  <div class="game-grid">
+    <section class="emoji-wrap">
+      <div id="blinkCornerTime" class="blink-corner-time hidden">?? 20?</div>
+      <div id="blinkResultFlash" class="blink-result-flash hidden" aria-hidden="true"></div>
+      <div id="emojiFace" class="emoji">
+        <div class="eyes">
+          <div id="leftEye" class="eye"><div id="leftPupil" class="pupil"></div></div>
+          <div id="rightEye" class="eye"><div id="rightPupil" class="pupil"></div></div>
+        </div>
+        <div class="blush left"></div>
+        <div class="blush right"></div>
+        <div class="nose"></div>
+        <div id="mouth" class="mouth"></div>
+      </div>
+      <img id="restGif" class="rest-gif hidden" src="/static/relax_rest.gif" alt="?? ??" />
+      <div id="restCaption" class="rest-caption hidden">? ?? ??</div>
+      <div id="blinkFloat" class="blink-float" aria-hidden="true"></div>
+    </section>
+
+    <section class="panel">
+      <h3>?? ???</h3>
+      <div id="previewWrap" class="preview-wrap hidden">
+        <video id="video" class="camera-preview" autoplay playsinline muted></video>
+        <canvas id="gazeOverlay" class="gaze-overlay"></canvas>
+      </div>
+      <div id="status" class="status">?? ?</div>
+      <div id="earText" class="metric hidden">EAR: -</div>
+      <div id="blinkText" class="metric hidden">??? ??: 0?</div>
+      <div id="gazeText" class="metric">?? ??: -</div>
+      <div class="ctrl-row">
+        <button id="startCameraBtn" class="primary-btn hidden">??? ??</button>
+        <button id="resetStateBtn" class="secondary-btn hidden">?? ?? ???</button>
+      </div>
+
+      <div id="permissionHelp" class="permission-help hidden">
+        <div class="permission-title">??? ??? ?????</div>
+        <div id="permissionText" class="permission-text">???? ???? ??? ??? ??? ???.</div>
+      </div>
+
+      <div id="blinkPanel" class="panel hidden" style="margin-top:10px;">
+        <h3>??? ????</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">20? ?? 12? ?? ???? ??</p>
+        <div id="blinkGoal" class="meta">??: 20? / 12? ??</div>
+        <div id="blinkCountLine" class="meta">?? ??: 0?</div>
+        <div id="blinkTimeLine" class="meta">?? ??: 20?</div>
+        <div class="ctrl-row"><button id="blinkStartBtn" class="primary-btn">20? ?? ??</button></div>
+        <div id="blinkMeta" class="meta">?? ?</div>
+      </div>
+
+      <div id="gazePanel" class="panel hidden" style="margin-top:10px;">
+        <h3>?? ?? ??</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">??? 3? ??? ?? ??</p>
+        <div class="ctrl-row">
+          <button id="gazeStartBtn" class="primary-btn">?? ??</button>
+          <button id="gazeRecalibrateBtn" class="secondary-btn">???</button>
+        </div>
+        <div id="gazeMeta" class="meta">?? ?</div>
+      </div>
+
+      <div id="circlePanel" class="panel hidden" style="margin-top:10px;">
+        <h3>?? ?? ??</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">???? ??? ???? ?????.</p>
+        <div class="meta" style="margin-top:6px;"><span style="color:#2f7cff;font-weight:800;">???</span>: ?? <span style="color:#ff9f2f;font-weight:800;">???</span>: ?? ??</div>
+        <div id="circleTrackArea" class="circle-track-area"><div id="circleTarget" class="circle-target"></div><div id="circleCursor" class="circle-cursor"></div></div>
+        <div class="ctrl-row"><button id="circleStartBtn" class="primary-btn">?? ??</button></div>
+        <div id="circleMeta" class="meta">?? ?</div>
+      </div>
+
+      <div id="focusPanel" class="panel hidden" style="margin-top:10px;">
+        <h3>?? ?? ??</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">60? ?? ???/? ?? ?? ??</p>
+        <div class="ctrl-row"><button id="focusStartBtn" class="primary-btn">60? ?? ??</button></div>
+        <div id="focusMeta" class="meta">?? ?</div>
+      </div>
+
+      <div id="rulePanel" class="panel hidden" style="margin-top:10px;">
+        <h3>20-20-20 ??</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">20??? ?? ??? ????.</p>
+        <div class="ctrl-row">
+          <button id="ruleStartBtn" class="primary-btn">20? ?? ??</button>
+          <button id="ruleStopBtn" class="ghost-btn hidden">?? ??</button>
+        </div>
+        <div id="ruleMeta" class="meta">???</div>
+      </div>
+
+      <div id="acuityPanel" class="panel hidden" style="margin-top:10px;">
+        <h3>?? ?? ???</h3>
+        <p style="margin:0;color:#34557f;font-size:0.86rem;">??? E ??? ?????.</p>
+        <div id="optotypeWrap" class="optotype-wrap"><div id="optotypeE" class="optotype-e">E</div><div id="acuityFirework" class="acuity-firework" aria-hidden="true"></div></div>
+        <div id="acuityFx" class="acuity-fx" aria-hidden="true"></div>
+        <div id="acuityCountFx" class="acuity-count-fx" aria-hidden="true">0 / 12</div>
+        <div class="ctrl-row"><button id="acuityStartBtn" class="primary-btn">??? ??</button></div>
+        <div class="ctrl-row"><button id="acuityUpBtn" class="secondary-btn">?</button><button id="acuityRightBtn" class="secondary-btn">???</button><button id="acuityDownBtn" class="secondary-btn">??</button><button id="acuityLeftBtn" class="secondary-btn">??</button></div>
+        <div id="acuityMeta" class="meta">?? ?</div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section id="evidenceSummarySection" class="evidence-summary hidden">
+  <h3 id="evidenceSummaryTitle">??? ?? ??</h3>
+  <p id="evidenceSummaryText">??? ???? ?? ??? ??? ?????.</p>
+</section>
+<div class="notice">? ???? ?? ??????. ???? ??? ??? ?? ???? ?????.</div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
