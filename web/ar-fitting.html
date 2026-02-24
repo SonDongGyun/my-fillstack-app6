@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
@@ -238,9 +238,56 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       (symmetry>=FRONTAL.symmetryMin)&&
       (score>=FRONTAL.scoreMin);
 
-    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal};
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeDist,eyeMidX,eyeMidY};
   }
 
+  function drawFrontalGlasses(ctx,w,h,pose){
+    if(!pose)return;
+
+    const lx=pose.eyeL.x*w;
+    const ly=pose.eyeL.y*h;
+    const rx=pose.eyeR.x*w;
+    const ry=pose.eyeR.y*h;
+    const mx=(lx+rx)*0.5;
+    const my=(ly+ry)*0.5;
+    const eyeDistPx=Math.hypot(rx-lx,ry-ly);
+    if(eyeDistPx<8)return;
+
+    const angle=Math.atan2(ry-ly,rx-lx);
+    const lensW=eyeDistPx*0.58;
+    const lensH=eyeDistPx*0.42;
+    const gap=eyeDistPx*0.09;
+
+    ctx.save();
+    ctx.translate(mx,my);
+    ctx.rotate(angle);
+
+    ctx.strokeStyle="#101820";
+    ctx.lineWidth=Math.max(2,eyeDistPx*0.07);
+    ctx.lineJoin="round";
+
+    const leftX=-(gap*0.5+lensW);
+    const rightX=gap*0.5;
+    const topY=-lensH*0.5;
+
+    ctx.strokeRect(leftX,topY,lensW,lensH);
+    ctx.strokeRect(rightX,topY,lensW,lensH);
+
+    ctx.beginPath();
+    ctx.moveTo(-gap*0.5,0);
+    ctx.lineTo(gap*0.5,0);
+    ctx.stroke();
+
+    const templeLen=eyeDistPx*0.34;
+    ctx.beginPath();
+    ctx.moveTo(leftX,topY+lensH*0.45);
+    ctx.lineTo(leftX-templeLen,topY+lensH*0.42);
+    ctx.moveTo(rightX+lensW,topY+lensH*0.45);
+    ctx.lineTo(rightX+lensW+templeLen,topY+lensH*0.42);
+    ctx.stroke();
+
+    ctx.restore();
+  }
   function renderDebug(pose){
     const ctx=canvas.getContext("2d");
     if(!ctx)return;
@@ -386,3 +433,5 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
