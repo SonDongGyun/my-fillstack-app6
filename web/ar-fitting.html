@@ -109,115 +109,43 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const zoomInBtn=document.getElementById("zoomInBtn");
   const modelSelect=document.getElementById("modelSelect");
   const tunePanel=document.getElementById("tunePanel");
-  const tuneResetBtn=document.getElementById("tuneResetBtn");
   const status=document.getElementById("status");
-
-  const yawRange=document.getElementById("yawRange");
-  const pitchRange=document.getElementById("pitchRange");
-  const rollRange=document.getElementById("rollRange");
-  const offsetYRange=document.getElementById("offsetYRange");
-  const offsetZRange=document.getElementById("offsetZRange");
-  const scaleRange=document.getElementById("scaleRange");
-
-  const yawVal=document.getElementById("yawVal");
-  const pitchVal=document.getElementById("pitchVal");
-  const rollVal=document.getElementById("rollVal");
-  const offsetYVal=document.getElementById("offsetYVal");
-  const offsetZVal=document.getElementById("offsetZVal");
-  const scaleVal=document.getElementById("scaleVal");
-
   const pdInfo=document.getElementById("pdInfo");
-  const frameColorInput=document.getElementById("frameColorInput");
-  const frameColorVal=document.getElementById("frameColorVal");
-  const lensTintRange=document.getElementById("lensTintRange");
-  const lensTintVal=document.getElementById("lensTintVal");
-  const glossRange=document.getElementById("glossRange");
-  const glossVal=document.getElementById("glossVal");
-
-  const TUNE_STORAGE_KEY="arModelTuneV4";
-  const STYLE_STORAGE_KEY="arStyleV1";
-
-  const MODEL_OPTIONS=[
-    {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
-    {label:"모델 A",path:"/static/models/model_a.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90},
-    {label:"모델 B",path:"/static/models/model_b.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90},
-    {label:"모델 C",path:"/static/models/model_c.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90}
-  ];
 
   const LIB_SOURCES={
-    three:["/static/vendor/three.min.js","https://cdn.jsdelivr.net/npm/three/build/three.min.js"],
-    gltf:["/static/vendor/GLTFLoader.js","https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"],
     camera:["/static/vendor/camera_utils.js","https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"],
     facemesh:["/static/vendor/face_mesh.js","https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"]
   };
 
-  const FIT={
-    scaleMul:4.8,
-    minScale:0.34,
-    maxScale:2.6,
-    yOffset:0,
-    zOffset:0,
+  const FRONTAL={
+    yawDeg:8,
+    pitchDeg:10,
+    rollDeg:6,
+    symmetryMin:0.88,
+    scoreMin:0.72,
+    lockFrames:10,
   };
 
-  const modelTune={};
-  MODEL_OPTIONS.forEach((m)=>{ if(m.path)modelTune[m.path]={}; });
-  const styleState={frameColor:"#111111",lensTint:32,gloss:58};
-  const pdState={samples:[],valueMm:0,ready:false};
-
-  let renderer=null;
-  let scene=null;
-  let cam3d=null;
-  let mpCam=null;
   let faceMesh=null;
+  let mpCam=null;
   let pipelineReady=false;
-  let glasses=null;
-  let fallback=null;
-  let modelRotQuat=null;
-  let modelOffsetY=0;
-  let modelOffsetZ=0;
-  let modelScaleMul=1;
-  let isModelSwitching=false;
-  let modelLoadSeq=0;
+  let running=false;
   let viewZoom=1;
 
-  let selectedModelCfg=getEffectiveCfg(MODEL_OPTIONS[1].path);
-  let selectedModelPath=selectedModelCfg.path;
-
-  const analysisState={
-    active:false,
+  const baseline={
     ready:false,
-    needed:28,
-    samples:null,
-    base:null,
-    count:0,
-  };
-  const fitLockState={
-    ready:false,
-    frontalStreak:0,
-    roll:0,
-    scale:1,
-    px:0,
-    py:0,
+    collecting:true,
+    samples:[],
+    needed:20,
+    xRatio:0,
+    yRatio:0,
   };
 
-  const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
-    ? window.ArPoseFilter.create({
-      posDeadzone:0.003,
-      rotDeadzoneDeg:1.4,
-      scaleDeadzone:0.012,
-      alphaMin:0.05,
-      alphaMax:0.17,
-      motionGain:0.16,
-      maxPosPerSec:1.0,
-      maxRotDegPerSec:52,
-      maxScalePerSec:0.50,
-    })
-    : null;
+  const frontalState={
+    streak:0,
+    locked:false,
+  };
 
-  function deg(v){ return v*180/Math.PI; }
-  function rad(v){ return v*Math.PI/180; }
-  function f2(v){ return Number(v).toFixed(2); }
-  function f3(v){ return Number(v).toFixed(3); }
   function setStatus(txt){ status.textContent=txt; }
 
   function loadScript(src){
@@ -241,94 +169,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   }
 
   async function ensureDeps(){
-    if(typeof window.THREE==="undefined"){
-      setStatus("AR 엔진 로드 중...");
-      await loadFromAny(LIB_SOURCES.three);
-    }
-    if(typeof window.THREE==="undefined")throw new Error("THREE 로드 실패");
-
-    if(typeof window.Camera==="undefined"){
-      setStatus("카메라 모듈 로드 중...");
-      await loadFromAny(LIB_SOURCES.camera);
-    }
-    if(typeof window.FaceMesh==="undefined"){
-      setStatus("얼굴 인식 모듈 로드 중...");
-      await loadFromAny(LIB_SOURCES.facemesh);
-    }
-
-    if(typeof window.THREE.GLTFLoader==="undefined"){
-      try{ await loadFromAny(LIB_SOURCES.gltf); }catch(_){ }
-    }
-  }
-
-  function loadTuneStorage(){
-    try{
-      const raw=localStorage.getItem(TUNE_STORAGE_KEY);
-      if(!raw)return;
-      const parsed=JSON.parse(raw);
-      if(!parsed||typeof parsed!=="object")return;
-      Object.keys(parsed).forEach((path)=>{ if(modelTune[path])Object.assign(modelTune[path],parsed[path]); });
-    }catch(_){ }
-  }
-
-  function saveTuneStorage(){
-    try{ localStorage.setItem(TUNE_STORAGE_KEY,JSON.stringify(modelTune)); }catch(_){ }
-  }
-
-  function loadStyleStorage(){
-    try{
-      const raw=localStorage.getItem(STYLE_STORAGE_KEY);
-      if(!raw)return;
-      const parsed=JSON.parse(raw);
-      if(!parsed||typeof parsed!=="object")return;
-      if(typeof parsed.frameColor==="string")styleState.frameColor=parsed.frameColor;
-      if(Number.isFinite(parsed.lensTint))styleState.lensTint=Math.max(0,Math.min(100,parsed.lensTint));
-      if(Number.isFinite(parsed.gloss))styleState.gloss=Math.max(0,Math.min(100,parsed.gloss));
-    }catch(_){ }
-  }
-
-  function saveStyleStorage(){
-    try{ localStorage.setItem(STYLE_STORAGE_KEY,JSON.stringify(styleState)); }catch(_){ }
-  }
-
-  function getModelBase(path){
-    return MODEL_OPTIONS.find((m)=>m.path===path)||MODEL_OPTIONS[0];
-  }
-
-  function getEffectiveCfg(path){
-    const base=getModelBase(path);
-    if(!path)return {...base};
-    return {...base,...(modelTune[path]||{})};
-  }
-
-  function median(arr){
-    if(!arr||arr.length===0)return 0;
-    const sorted=[...arr].sort((a,b)=>a-b);
-    const mid=Math.floor(sorted.length*0.5);
-    return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])*0.5;
-  }
-
-  function estimatePdMm(points){
-    const pr=points[468],pl=points[473];
-    if(!pr||!pl)return null;
-    const pdNorm=Math.hypot(pl.x-pr.x,pl.y-pr.y);
-    const d=(a,b)=>Math.hypot((points[a]?.x||0)-(points[b]?.x||0),(points[a]?.y||0)-(points[b]?.y||0));
-    const irisRight=(d(469,471)+d(470,472))*0.5;
-    const irisLeft=(d(474,476)+d(475,477))*0.5;
-    const iris=(irisRight>0&&irisLeft>0)?(irisRight+irisLeft)*0.5:(irisRight||irisLeft);
-    if(!iris||iris<1e-5)return null;
-    const pdMm=(pdNorm/iris)*11.7;
-    return THREE.MathUtils.clamp(pdMm,50,78);
-  }
-
-  function pushPdSample(mm){
-    if(!Number.isFinite(mm))return;
-    pdState.samples.push(mm);
-    if(pdState.samples.length>45)pdState.samples.shift();
-    if(pdState.samples.length<8)return;
-    pdState.valueMm=median(pdState.samples);
-    pdState.ready=true;
-    pdInfo.textContent=`AI PD: ${pdState.valueMm.toFixed(1)} mm`;
+    if(typeof window.Camera==="undefined")await loadFromAny(LIB_SOURCES.camera);
+    if(typeof window.FaceMesh==="undefined")await loadFromAny(LIB_SOURCES.facemesh);
+    if(typeof window.Camera==="undefined"||typeof window.FaceMesh==="undefined")throw new Error("mediapipe load failed");
   }
 
   function applyViewZoom(){
@@ -337,677 +180,201 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     canvas.style.transform=t;
   }
 
-  function initRenderer(){
-    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-    if("outputColorSpace" in renderer&&THREE.SRGBColorSpace)renderer.outputColorSpace=THREE.SRGBColorSpace;
-    if("toneMapping" in renderer)renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    if("toneMappingExposure" in renderer)renderer.toneMappingExposure=1.04;
-
-    scene=new THREE.Scene();
-    cam3d=new THREE.PerspectiveCamera(45,1,0.1,100);
-    cam3d.position.set(0,0,3.2);
-
-    scene.add(new THREE.AmbientLight(0xffffff,1.08));
-    scene.add(new THREE.HemisphereLight(0xeaf2ff,0x2d2e35,0.58));
-    const keyLight=new THREE.DirectionalLight(0xffffff,0.95);
-    keyLight.position.set(0.2,1.8,2.2);
-    scene.add(keyLight);
-
-    const resize=()=>{
-      const w=canvas.clientWidth||640;
-      const h=canvas.clientHeight||480;
-      renderer.setSize(w,h,false);
-      cam3d.aspect=w/h;
-      cam3d.updateProjectionMatrix();
-    };
-    window.addEventListener("resize",resize);
-    resize();
-
-    modelRotQuat=new THREE.Quaternion();
-    applyViewZoom();
+  function median(arr){
+    if(!arr||arr.length===0)return 0;
+    const sorted=[...arr].sort((a,b)=>a-b);
+    const m=Math.floor(sorted.length*0.5);
+    return sorted.length%2?sorted[m]:(sorted[m-1]+sorted[m])*0.5;
   }
 
-  function ensureMat(node){
-    if(!node.material)return [];
-    const mats=Array.isArray(node.material)?node.material:[node.material];
-    return mats.map((m)=>{
-      if(!m||typeof m.clone!=="function")return m;
-      if(m.userData&&m.userData.__arStyled)return m;
-      const cloned=m.clone();
-      cloned.userData={...(cloned.userData||{}),__arStyled:true};
-      return cloned;
-    });
-  }
+  function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
-  function applyStyleToObject(obj){
-    if(!obj)return;
-    obj.traverse((node)=>{
-      if(!node.isMesh)return;
-      const mats=ensureMat(node);
-      if(Array.isArray(node.material))node.material=mats;
-      else node.material=mats[0];
-      mats.forEach((m)=>{
-        if(!m||!m.color)return;
-        const key=`${(node.name||"")} ${(m.name||"")}`.toLowerCase();
-        const isLens=/lens|glass|lense|렌즈/.test(key);
-        if(isLens){
-          m.transparent=true;
-          m.opacity=THREE.MathUtils.clamp(0.92-(styleState.lensTint/100)*0.72,0.20,0.95);
-          m.color.setRGB(0.62,0.68,0.74);
-          m.metalness=0.0;
-          m.roughness=THREE.MathUtils.clamp(0.22-(styleState.gloss/100)*0.15,0.03,0.25);
-          m.envMapIntensity=0.9+(styleState.gloss/100)*0.9;
-        }else{
-          m.color.set(styleState.frameColor);
-          m.metalness=0.25+(styleState.gloss/100)*0.55;
-          m.roughness=0.55-(styleState.gloss/100)*0.35;
-          m.envMapIntensity=0.6+(styleState.gloss/100)*0.8;
-        }
-        m.needsUpdate=true;
-      });
-    });
-  }
+  function calcPose(pts){
+    const eyeL=pts[33],eyeR=pts[263],nose=pts[1]||pts[6];
+    if(!eyeL||!eyeR||!nose)return null;
 
-  function applyStyleTargets(){
-    if(glasses)applyStyleToObject(glasses);
-    if(fallback)applyStyleToObject(fallback);
-  }
+    const eyeDx=eyeR.x-eyeL.x;
+    const eyeDy=eyeR.y-eyeL.y;
+    const eyeDist=Math.hypot(eyeDx,eyeDy);
+    if(eyeDist<1e-5)return null;
 
-  function syncStyleUI(){
-    frameColorInput.value=styleState.frameColor;
-    frameColorVal.textContent=styleState.frameColor.toUpperCase();
-    lensTintRange.value=String(styleState.lensTint);
-    lensTintVal.textContent=`${styleState.lensTint}%`;
-    glossRange.value=String(styleState.gloss);
-    glossVal.textContent=`${styleState.gloss}%`;
-  }
+    const eyeMidX=(eyeL.x+eyeR.x)*0.5;
+    const eyeMidY=(eyeL.y+eyeR.y)*0.5;
 
-  function setupStyleControls(){
-    const onStyle=()=>{
-      styleState.frameColor=frameColorInput.value;
-      styleState.lensTint=Number(lensTintRange.value);
-      styleState.gloss=Number(glossRange.value);
-      syncStyleUI();
-      applyStyleTargets();
-      saveStyleStorage();
-      setStatus("스타일 변경 적용됨");
-    };
-    frameColorInput.addEventListener("input",onStyle);
-    lensTintRange.addEventListener("input",onStyle);
-    glossRange.addEventListener("input",onStyle);
-  }
+    const xRatio=(nose.x-eyeMidX)/eyeDist;
+    const yRatio=(nose.y-eyeMidY)/eyeDist;
 
-  function createFallbackGlasses(){
-    const group=new THREE.Group();
-    const mat=new THREE.MeshStandardMaterial({color:0x2b3b54,roughness:0.35,metalness:0.2});
-    const lensL=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.015,14,40),mat);
-    const lensR=lensL.clone();
-    lensL.position.x=-0.30;
-    lensR.position.x=0.30;
-    const bridge=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.02,0.02),mat);
-    const templeL=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,0.42),mat);
-    const templeR=templeL.clone();
-    templeL.position.set(-0.55,0,-0.18);
-    templeR.position.set(0.55,0,-0.18);
-    group.add(lensL,lensR,bridge,templeL,templeR);
-    group.visible=false;
-    scene.add(group);
-    applyStyleToObject(group);
-    return group;
-  }
-
-  function disposeObject3D(obj){
-    if(!obj)return;
-    obj.traverse((node)=>{
-      if(node.geometry&&typeof node.geometry.dispose==="function")node.geometry.dispose();
-      if(node.material){
-        const mats=Array.isArray(node.material)?node.material:[node.material];
-        mats.forEach((m)=>{
-          if(!m)return;
-          Object.keys(m).forEach((k)=>{
-            const v=m[k];
-            if(v&&typeof v.dispose==="function"&&v.isTexture)v.dispose();
-          });
-          if(typeof m.dispose==="function")m.dispose();
-        });
+    if(baseline.collecting){
+      baseline.samples.push({xRatio,yRatio});
+      if(baseline.samples.length>=baseline.needed){
+        baseline.xRatio=median(baseline.samples.map((s)=>s.xRatio));
+        baseline.yRatio=median(baseline.samples.map((s)=>s.yRatio));
+        baseline.ready=true;
+        baseline.collecting=false;
+        setStatus("기준 캘리브레이션 완료");
       }
-    });
+    }
+
+    const baseX=baseline.ready?baseline.xRatio:xRatio;
+    const baseY=baseline.ready?baseline.yRatio:yRatio;
+
+    const yawDeg=clamp((xRatio-baseX)*120,-45,45);
+    const pitchDeg=clamp((yRatio-baseY)*120,-45,45);
+    const rollDeg=clamp(Math.atan2(eyeDy,eyeDx)*180/Math.PI,-45,45);
+
+    const dL=Math.hypot(nose.x-eyeL.x,nose.y-eyeL.y);
+    const dR=Math.hypot(nose.x-eyeR.x,nose.y-eyeR.y);
+    const symmetry=1-(Math.abs(dL-dR)/(dL+dR+1e-6));
+
+    const yawScore=1-clamp(Math.abs(yawDeg)/FRONTAL.yawDeg,0,1);
+    const pitchScore=1-clamp(Math.abs(pitchDeg)/FRONTAL.pitchDeg,0,1);
+    const rollScore=1-clamp(Math.abs(rollDeg)/FRONTAL.rollDeg,0,1);
+    const symScore=clamp((symmetry-FRONTAL.symmetryMin)/(1-FRONTAL.symmetryMin),0,1);
+    const score=(yawScore*0.35)+(pitchScore*0.20)+(rollScore*0.25)+(symScore*0.20);
+
+    const isFrontal=(Math.abs(yawDeg)<=FRONTAL.yawDeg)&&
+      (Math.abs(pitchDeg)<=FRONTAL.pitchDeg)&&
+      (Math.abs(rollDeg)<=FRONTAL.rollDeg)&&
+      (symmetry>=FRONTAL.symmetryMin)&&
+      (score>=FRONTAL.scoreMin);
+
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal};
   }
 
-  function clearGlasses(){
-    if(glasses){
-      scene.remove(glasses);
-      disposeObject3D(glasses);
-      glasses=null;
+  function renderDebug(pose){
+    const ctx=canvas.getContext("2d");
+    if(!ctx)return;
+    const w=canvas.width=video.videoWidth||640;
+    const h=canvas.height=video.videoHeight||480;
+    ctx.clearRect(0,0,w,h);
+
+    const badge=pose&&pose.isFrontal?"정면 인식":"정면 아님";
+    const badgeBg=pose&&pose.isFrontal?"#1f8f4a":"#b33a3a";
+    ctx.fillStyle=badgeBg;
+    ctx.fillRect(14,14,116,30);
+    ctx.fillStyle="#fff";
+    ctx.font="bold 14px sans-serif";
+    ctx.fillText(badge,24,34);
+
+    if(pose){
+      const t1=`Yaw ${pose.yawDeg.toFixed(1)}°`;
+      const t2=`Pitch ${pose.pitchDeg.toFixed(1)}°`;
+      const t3=`Roll ${pose.rollDeg.toFixed(1)}°`;
+      const t4=`Score ${(pose.score*100).toFixed(0)}%`;
+      ctx.fillStyle="rgba(0,0,0,0.55)";
+      ctx.fillRect(14,52,150,88);
+      ctx.fillStyle="#e8f3ff";
+      ctx.font="13px monospace";
+      ctx.fillText(t1,22,72);
+      ctx.fillText(t2,22,92);
+      ctx.fillText(t3,22,112);
+      ctx.fillText(t4,22,132);
     }
   }
 
-  function safeBoxSize(obj){
-    const box=new THREE.Box3().setFromObject(obj);
-    const size=new THREE.Vector3();
-    box.getSize(size);
-    return {box,size};
-  }
-
-  function normalizeLoadedGlasses(root){
-    if(!root)return root;
-
-    root.position.set(0,0,0);
-    root.rotation.set(0,0,0);
-    root.scale.set(1,1,1);
-
-    const yawCandidates=[Math.PI*0.5,-Math.PI*0.5,0,Math.PI];
-    let bestYaw=0;
-    let bestScore=-Infinity;
-
-    yawCandidates.forEach((yaw)=>{
-      root.rotation.set(0,yaw,0);
-      root.updateMatrixWorld(true);
-      const {size}=safeBoxSize(root);
-      if(size.x<=1e-6||size.y<=1e-6||size.z<=1e-6)return;
-      const width=size.x;
-      const depth=size.z;
-      const height=size.y;
-      const score=(width*0.22)+(height*0.08)-(depth*1.0);
-      if(score>bestScore){
-        bestScore=score;
-        bestYaw=yaw;
-      }
-    });
-
-    root.rotation.set(0,bestYaw,0);
-    root.updateMatrixWorld(true);
-
-    let {box,size}=safeBoxSize(root);
-    const width=Math.max(size.x,size.z);
-    if(width>1e-6){
-      const targetWidth=1.10;
-      root.scale.multiplyScalar(targetWidth/width);
-      root.updateMatrixWorld(true);
-      ({box,size}=safeBoxSize(root));
-    }
-
-    const center=new THREE.Vector3();
-    box.getCenter(center);
-    const bridgePivot=new THREE.Vector3(center.x,box.min.y+(size.y*0.56),center.z);
-    root.position.sub(bridgePivot);
-    root.updateMatrixWorld(true);
-    return root;
-  }
-
-  function ndcToWorld(nx,ny){
-    const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
-    const halfW=halfH*cam3d.aspect;
-    return new THREE.Vector3((nx-0.5)*2*halfW,-(ny-0.5)*2*halfH,0);
-  }
-
-  function toSceneVec(p){ return new THREE.Vector3(p.x,-p.y,-p.z); }
-
-  function getPose(points){
-    const left=points[234],right=points[454],nose=points[6],bridge=points[168],chin=points[152];
-    const eyeL=points[33],eyeR=points[263],earL=points[127],earR=points[356];
-    if(!left||!right||!nose||!bridge||!chin||!eyeL||!eyeR)return null;
-
-    const pupilR=points[468],pupilL=points[473];
-    const rollL=pupilL||eyeL;
-    const rollR=pupilR||eyeR;
-
-    const rightVec=toSceneVec({x:rollR.x-rollL.x,y:rollR.y-rollL.y,z:rollR.z-rollL.z});
-    const upHint=toSceneVec({x:bridge.x-chin.x,y:bridge.y-chin.y,z:bridge.z-chin.z});
-    if(rightVec.lengthSq()<1e-8||upHint.lengthSq()<1e-8)return null;
-
-    const xAxis=rightVec.normalize();
-    let zAxis=new THREE.Vector3().crossVectors(xAxis,upHint).normalize();
-    if(zAxis.lengthSq()<1e-8)return null;
-
-    const forwardHint=toSceneVec({x:nose.x-bridge.x,y:nose.y-bridge.y,z:nose.z-bridge.z}).normalize();
-    if(forwardHint.lengthSq()>1e-8&&zAxis.dot(forwardHint)<0)zAxis.multiplyScalar(-1);
-
-    let yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
-    if(yAxis.dot(upHint)<0){
-      yAxis.multiplyScalar(-1);
-      zAxis.multiplyScalar(-1);
-    }
-
-    const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
-    const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
-    const euler=new THREE.Euler().setFromQuaternion(quat,"YXZ");
-
-    const eyeCenterX=(eyeL.x+eyeR.x)*0.5;
-    const eyeCenterY=(eyeL.y+eyeR.y)*0.5;
-    const pupilMidX=(pupilR&&pupilL)?(pupilR.x+pupilL.x)*0.5:eyeCenterX;
-    const pupilMidY=(pupilR&&pupilL)?(pupilR.y+pupilL.y)*0.5:eyeCenterY;
-
-    const anchorX=bridge.x*0.50+pupilMidX*0.45+nose.x*0.05;
-    const anchorY=bridge.y*0.44+pupilMidY*0.50+nose.y*0.06;
-
-    const pos=ndcToWorld(anchorX,anchorY);
-    pos.y+=FIT.yOffset;
-    pos.z+=FIT.zOffset;
-
-    const eyeDist2d=Math.hypot(eyeR.x-eyeL.x,eyeR.y-eyeL.y);
-    const pdNorm=(pupilR&&pupilL)?Math.hypot(pupilL.x-pupilR.x,pupilL.y-pupilR.y):eyeDist2d;
-    const faceWidth2d=Math.hypot(right.x-left.x,right.y-left.y);
-    const earSpan2d=(earL&&earR)?Math.hypot(earR.x-earL.x,earR.y-earL.y):faceWidth2d;
-    const noseBridgeDepth=Math.abs((nose.z||0)-(bridge.z||0));
-    const earDepth=(earL&&earR)?Math.abs((earR.z||0)-(earL.z||0)):noseBridgeDepth;
-
-    const scaleSeed=(pdNorm*0.58)+(faceWidth2d*0.30)+(earSpan2d*0.12);
-    const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
-    const eyeRoll=Math.atan2(rollR.y-rollL.y,rollR.x-rollL.x);
-
-    return {
-      position:pos,
-      quaternion:quat,
-      scale,
-      anchorX,
-      anchorY,
-      pdNorm,
-      faceWidth2d,
-      earSpan2d,
-      noseBridgeDepth,
-      earDepth,
-      eyeRoll,
-      pitch:euler.x,
-      yaw:euler.y,
-      roll:euler.z,
-    };
-  }
-
-  function isFrontalPose(pose){
-    if(!pose)return false;
-    const pitchAbs=Math.abs(deg(pose.pitch||0));
-    const yawAbs=Math.abs(deg(pose.yaw||0));
-    return pitchAbs<=12&&yawAbs<=16;
-  }
-
-  function resetFaceAnalysis(){
-    analysisState.count=0;
-    analysisState.samples={
-      anchorX:[],anchorY:[],pdNorm:[],faceWidth:[],earSpan:[],depth:[],roll:[],eyeRoll:[],scale:[]
-    };
-  }
-
-  function startFaceAnalysis(){
-    analysisState.active=true;
-    analysisState.ready=false;
-    analysisState.base=null;
-    resetFaceAnalysis();
-    fitLockState.ready=false;
-    fitLockState.frontalStreak=0;
-    if(poseFilter)poseFilter.reset();
-    setStatus("얼굴 분석 중... 정면을 1초 유지해 주세요");
-  }
-
-  function pushFaceSample(pose){
-    if(!analysisState.active||!analysisState.samples)return;
-    if(!isFrontalPose(pose))return;
-
-    analysisState.samples.anchorX.push(pose.anchorX);
-    analysisState.samples.anchorY.push(pose.anchorY);
-    analysisState.samples.pdNorm.push(pose.pdNorm);
-    analysisState.samples.faceWidth.push(pose.faceWidth2d);
-    analysisState.samples.earSpan.push(pose.earSpan2d);
-    analysisState.samples.depth.push((pose.noseBridgeDepth*0.65)+(pose.earDepth*0.35));
-    analysisState.samples.roll.push(pose.roll);
-    analysisState.samples.eyeRoll.push(pose.eyeRoll);
-    analysisState.samples.scale.push(pose.scale);
-    analysisState.count++;
-
-    if(analysisState.count>=analysisState.needed){
-      analysisState.base={
-        anchorX:median(analysisState.samples.anchorX),
-        anchorY:median(analysisState.samples.anchorY),
-        pdNorm:median(analysisState.samples.pdNorm),
-        faceWidth:median(analysisState.samples.faceWidth),
-        earSpan:median(analysisState.samples.earSpan),
-        depth:median(analysisState.samples.depth),
-        roll:median(analysisState.samples.roll),
-        eyeRoll:median(analysisState.samples.eyeRoll),
-        scale:median(analysisState.samples.scale),
-      };
-      analysisState.active=false;
-      analysisState.ready=true;
-      fitLockState.ready=false;
-      fitLockState.frontalStreak=0;
-      if(poseFilter)poseFilter.reset();
-      setStatus("얼굴 분석 완료: 피팅 시작");
+  function updateFrontalState(pose){
+    if(!pose){
+      frontalState.streak=0;
+      frontalState.locked=false;
+      setStatus("얼굴을 화면 중앙에 맞춰 주세요");
+      pdInfo.textContent="정면 점수: 측정 전";
       return;
     }
 
-    if((analysisState.count%8)===0){
-      const p=Math.min(100,Math.round((analysisState.count/analysisState.needed)*100));
-      setStatus(`얼굴 분석 중... ${p}%`);
-    }
+    frontalState.streak=pose.isFrontal?(frontalState.streak+1):Math.max(0,frontalState.streak-1);
+    frontalState.locked=frontalState.streak>=FRONTAL.lockFrames;
+
+    const lockTxt=frontalState.locked?"정면 확정":"정면 대기";
+    setStatus(`${lockTxt} | yaw ${pose.yawDeg.toFixed(1)} pitch ${pose.pitchDeg.toFixed(1)} roll ${pose.rollDeg.toFixed(1)}`);
+    pdInfo.textContent=`정면 점수: ${(pose.score*100).toFixed(0)}% / 대칭 ${(pose.symmetry*100).toFixed(0)}%`;
   }
 
-  function hideModel(){
-    if(glasses)glasses.visible=false;
-    if(fallback)fallback.visible=false;
+  function resetCalibration(){
+    baseline.ready=false;
+    baseline.collecting=true;
+    baseline.samples=[];
+    frontalState.streak=0;
+    frontalState.locked=false;
+    setStatus("정면 재보정 중... 정면을 유지해 주세요");
   }
 
-  function syncModelTransform(cfg){
-    if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
-    modelOffsetY=cfg.offsetY||0;
-    modelOffsetZ=cfg.offsetZ||0;
-    modelScaleMul=cfg.scale||1;
-    fitLockState.ready=false;
-    fitLockState.frontalStreak=0;
-    if(poseFilter)poseFilter.reset();
-  }
-
-  function applyModel(pose){
-    let target=null;
-    if(glasses)target=glasses;
-    else if(!selectedModelPath&&!isModelSwitching)target=fallback;
-    if(!target)return;
-
-    if(!analysisState.ready&&!analysisState.active)startFaceAnalysis();
-    if(analysisState.active)pushFaceSample(pose);
-
-    const correctedQuat=pose.quaternion.clone();
-    const e=new THREE.Euler().setFromQuaternion(correctedQuat,"YXZ");
-    let targetScale=pose.scale;
-    let depthDelta=0;
-    let targetPx=pose.position.x;
-    let targetPy=pose.position.y;
-
-    if(analysisState.base){
-      const pitchAbs=Math.abs(e.x);
-      const yawAbs=Math.abs(e.y);
-      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(14))+(yawAbs/THREE.MathUtils.degToRad(18)))*0.5,0,1);
-      const isHardFrontal=frontalFactor>=0.78;
-      fitLockState.frontalStreak=isHardFrontal?(fitLockState.frontalStreak+1):Math.max(0,fitLockState.frontalStreak-1);
-
-      const baseRoll=analysisState.base.roll||0;
-      const rollGain=0.012+(frontalFactor*0.032);
-      const rollClamp=THREE.MathUtils.degToRad(2.2);
-      const rollDelta=(analysisState.base.eyeRoll-pose.eyeRoll)*rollGain;
-      const dynamicRoll=THREE.MathUtils.clamp(baseRoll+rollDelta,baseRoll-rollClamp,baseRoll+rollClamp);
-      const rollTarget=isHardFrontal?THREE.MathUtils.lerp(dynamicRoll,baseRoll,0.96):dynamicRoll;
-
-      const pdRatio=THREE.MathUtils.clamp((pose.pdNorm||1e-6)/Math.max(analysisState.base.pdNorm||1e-6,1e-6),0.90,1.12);
-      const widthNow=Math.max((pose.faceWidth2d*0.65)+(pose.earSpan2d*0.35),1e-6);
-      const widthBase=Math.max((analysisState.base.faceWidth*0.65)+(analysisState.base.earSpan*0.35),1e-6);
-      const widthRatio=THREE.MathUtils.clamp(widthNow/widthBase,0.90,1.12);
-      const dynamicScale=THREE.MathUtils.clamp((analysisState.base.scale||pose.scale)*THREE.MathUtils.lerp(1,(pdRatio*0.55)+(widthRatio*0.45),0.55),FIT.minScale,FIT.maxScale);
-      const baseScale=Math.max(analysisState.base.scale||dynamicScale,FIT.minScale);
-      const scaleTarget=isHardFrontal?THREE.MathUtils.lerp(dynamicScale,baseScale,0.94):dynamicScale;
-
-      const basePos=ndcToWorld(analysisState.base.anchorX,analysisState.base.anchorY);
-      const anchorBlend=isHardFrontal?0.88:0.30;
-      targetPx=THREE.MathUtils.lerp(pose.position.x,basePos.x,anchorBlend);
-      targetPy=THREE.MathUtils.lerp(pose.position.y,basePos.y,anchorBlend);
-
-      const depthNow=(pose.noseBridgeDepth*0.65)+(pose.earDepth*0.35);
-      depthDelta=THREE.MathUtils.clamp((depthNow-(analysisState.base.depth||depthNow))*1.20,-0.04,0.04);
-
-      if(!fitLockState.ready){
-        fitLockState.ready=true;
-        fitLockState.roll=rollTarget;
-        fitLockState.scale=scaleTarget;
-        fitLockState.px=targetPx;
-        fitLockState.py=targetPy;
-      }
-
-      const hold=(fitLockState.frontalStreak>=5)?0.90:0.52;
-      const follow=(fitLockState.frontalStreak>=5)?0.10:0.34;
-      fitLockState.roll=THREE.MathUtils.lerp(fitLockState.roll,rollTarget,follow);
-      fitLockState.scale=THREE.MathUtils.lerp(fitLockState.scale,scaleTarget,follow);
-      fitLockState.px=THREE.MathUtils.lerp(fitLockState.px,targetPx,follow);
-      fitLockState.py=THREE.MathUtils.lerp(fitLockState.py,targetPy,follow);
-
-      e.z=THREE.MathUtils.lerp(rollTarget,fitLockState.roll,hold);
-      correctedQuat.setFromEuler(e);
-      targetScale=THREE.MathUtils.lerp(scaleTarget,fitLockState.scale,hold);
-      targetPx=THREE.MathUtils.lerp(targetPx,fitLockState.px,hold);
-      targetPy=THREE.MathUtils.lerp(targetPy,fitLockState.py,hold);
-    }
-
-    const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
-    const rawPose={
-      px:targetPx,
-      py:targetPy,
-      pz:pose.position.z+depthDelta,
-      qx:correctedQuat.x,
-      qy:correctedQuat.y,
-      qz:correctedQuat.z,
-      qw:correctedQuat.w,
-      scale:targetScale,
-    };
-
-    const filtered=poseFilter?poseFilter.update(rawPose,nowMs):rawPose;
-
-    target.visible=true;
-    target.position.set(filtered.px,filtered.py,filtered.pz);
-    if(target===glasses){
-      target.position.y+=modelOffsetY;
-      target.position.z+=modelOffsetZ;
-    }
-
-    target.quaternion.set(filtered.qx,filtered.qy,filtered.qz,filtered.qw);
-    if(target===glasses&&modelRotQuat)target.quaternion.premultiply(modelRotQuat);
-    target.scale.setScalar(target===glasses?filtered.scale*modelScaleMul:filtered.scale);
-  }
   function ensurePipeline(){
     if(pipelineReady)return;
 
     faceMesh=new FaceMesh({locateFile:(f)=>`/static/vendor/${f}`});
-    faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.55,minTrackingConfidence:0.55});
+    faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
     faceMesh.onResults((results)=>{
       const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
-      if(pts){
-        const pd=estimatePdMm(pts);
-        if(pd!==null)pushPdSample(pd);
-        const pose=getPose(pts);
-        if(pose)applyModel(pose);
-        else hideModel();
-      }else hideModel();
-
-      renderer.render(scene,cam3d);
+      const pose=pts?calcPose(pts):null;
+      updateFrontalState(pose);
+      renderDebug(pose);
     });
 
     pipelineReady=true;
   }
 
-  async function loadGlasses(path,cfg=selectedModelCfg){
-    const seq=++modelLoadSeq;
-    isModelSwitching=true;
-    clearGlasses();
-    if(fallback)fallback.visible=false;
-
-    if(!path){
-      if(modelRotQuat)modelRotQuat.identity();
-      modelOffsetY=0;
-      modelOffsetZ=0;
-      modelScaleMul=1;
-      isModelSwitching=false;
-      setStatus("기본 프레임 모드");
-      return;
-    }
-
-    if(!THREE.GLTFLoader){
-      isModelSwitching=false;
-      setStatus("GLB 로더 없음: 기본 프레임 사용");
-      return;
-    }
-
-    await new Promise((resolve)=>{
-      const loader=new THREE.GLTFLoader();
-      loader.load(path,(gltf)=>{
-        if(seq!==modelLoadSeq){ disposeObject3D(gltf.scene); resolve(); return; }
-        clearGlasses();
-        glasses=gltf.scene;
-        normalizeLoadedGlasses(glasses);
-        glasses.visible=false;
-        scene.add(glasses);
-        applyStyleToObject(glasses);
-        if(fallback)fallback.visible=false;
-        syncModelTransform(cfg);
-        isModelSwitching=false;
-        setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
-        resolve();
-      },undefined,()=>{
-        if(seq===modelLoadSeq)setStatus("선택 모델 로드 실패: 기본 프레임 사용");
-        if(seq===modelLoadSeq)isModelSwitching=false;
-        resolve();
-      });
-    });
-  }
-
-  function setTuneEnabled(enabled){
-    tunePanel.style.opacity=enabled?"1":"0.5";
-    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange,tuneResetBtn].forEach((el)=>el.disabled=!enabled);
-  }
-
-  function syncTuneUI(cfg){
-    yawRange.value=String(Math.round(deg(cfg.yaw||0)));
-    pitchRange.value=String(Math.round(deg(cfg.pitch||0)));
-    rollRange.value=String(Math.round(deg(cfg.roll||0)));
-    offsetYRange.value=String(cfg.offsetY||0);
-    offsetZRange.value=String(cfg.offsetZ||0);
-    scaleRange.value=String(cfg.scale||1);
-
-    yawVal.textContent=String(Math.round(deg(cfg.yaw||0)));
-    pitchVal.textContent=String(Math.round(deg(cfg.pitch||0)));
-    rollVal.textContent=String(Math.round(deg(cfg.roll||0)));
-    offsetYVal.textContent=f3(cfg.offsetY||0);
-    offsetZVal.textContent=f3(cfg.offsetZ||0);
-    scaleVal.textContent=f2(cfg.scale||1);
-  }
-
-  function setupTuneControls(){
-    const onChange=()=>{
-      if(!selectedModelPath)return;
-      const tune={
-        yaw:rad(Number(yawRange.value)),
-        pitch:rad(Number(pitchRange.value)),
-        roll:rad(Number(rollRange.value)),
-        offsetY:Number(offsetYRange.value),
-        offsetZ:Number(offsetZRange.value),
-        scale:Number(scaleRange.value),
-      };
-
-      modelTune[selectedModelPath]={...(modelTune[selectedModelPath]||{}),...tune};
-      selectedModelCfg=getEffectiveCfg(selectedModelPath);
-      syncModelTransform(selectedModelCfg);
-      saveTuneStorage();
-
-      yawVal.textContent=String(Math.round(Number(yawRange.value)));
-      pitchVal.textContent=String(Math.round(Number(pitchRange.value)));
-      rollVal.textContent=String(Math.round(Number(rollRange.value)));
-      offsetYVal.textContent=f3(Number(offsetYRange.value));
-      offsetZVal.textContent=f3(Number(offsetZRange.value));
-      scaleVal.textContent=f2(Number(scaleRange.value));
-      setStatus("미세 보정값 적용됨");
-    };
-
-    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange].forEach((el)=>{
-      el.addEventListener("input",onChange);
-      el.addEventListener("change",onChange);
-    });
-
-    tuneResetBtn.addEventListener("click",()=>{
-      if(!selectedModelPath)return;
-      modelTune[selectedModelPath]={};
-      selectedModelCfg=getEffectiveCfg(selectedModelPath);
-      syncTuneUI(selectedModelCfg);
-      syncModelTransform(selectedModelCfg);
-      saveTuneStorage();
-      setStatus("현재 모델 보정값 초기화 완료");
-    });
-  }
-
-  function setupModelSelect(){
-    modelSelect.innerHTML="";
-    MODEL_OPTIONS.forEach((opt)=>{
-      const el=document.createElement("option");
-      el.value=opt.path;
-      el.textContent=opt.label;
-      modelSelect.appendChild(el);
-    });
-
-    modelSelect.value=selectedModelPath;
-    modelSelect.addEventListener("change",async()=>{
-      selectedModelPath=modelSelect.value;
-      selectedModelCfg=getEffectiveCfg(selectedModelPath);
-      setTuneEnabled(!!selectedModelPath);
-      syncTuneUI(selectedModelCfg);
-      await loadGlasses(selectedModelPath,selectedModelCfg);
-    });
-  }
-
-  function setupZoomControls(){
-    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
-    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
-    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); setStatus("화면 배율: 1.0x"); });
-  }
-
   async function start(){
     try{
       setStatus("카메라 시작 중...");
-      startFaceAnalysis();
-
       if(!pipelineReady)ensurePipeline();
       if(typeof Camera==="undefined")throw new Error("Camera unavailable");
 
       if(!mpCam){
-        mpCam=new Camera(video,{onFrame:async()=>{ await faceMesh.send({image:video}); },width:960,height:720});
+        mpCam=new Camera(video,{onFrame:async()=>{ if(running)await faceMesh.send({image:video}); },width:960,height:720});
       }
 
+      running=true;
       await mpCam.start();
       startBtn.disabled=true;
-      setStatus("실행 중");
+      setStatus("실행 중: 정면 인식 단계");
     }catch(err){
       const msg=String(err?.message||"").toLowerCase();
       if(/secure|https/.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요");
-      else if(/denied|notallowed|permission/.test(msg))setStatus("카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요");
+      else if(/denied|notallowed|permission/.test(msg))setStatus("카메라 권한이 거부되었습니다");
       else setStatus("카메라 시작 실패: 라이브러리/권한 확인 필요");
       console.error(err);
     }
   }
 
   function stop(){
+    running=false;
     try{
       if(video&&video.srcObject){
         video.srcObject.getTracks().forEach((t)=>t.stop());
         video.srcObject=null;
       }
-      hideModel();
-      if(poseFilter)poseFilter.reset();
+      const ctx=canvas.getContext("2d");
+      if(ctx)ctx.clearRect(0,0,canvas.width,canvas.height);
       startBtn.disabled=false;
       setStatus("중지됨");
     }catch(_){ }
   }
 
+  function disableUnusedControls(){
+    modelSelect.disabled=true;
+    tunePanel.style.opacity="0.5";
+    Array.from(tunePanel.querySelectorAll("input,button")).forEach((el)=>{ el.disabled=true; });
+  }
+
+  function setupZoomControls(){
+    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); });
+    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); });
+    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); });
+  }
+
   async function boot(){
     try{
-      loadTuneStorage();
-      loadStyleStorage();
-      syncStyleUI();
       await ensureDeps();
-      initRenderer();
-      fallback=createFallbackGlasses();
-
-      selectedModelCfg=getEffectiveCfg(selectedModelPath);
-      setupModelSelect();
-      setupTuneControls();
-      setupStyleControls();
+      applyViewZoom();
       setupZoomControls();
-
-      setTuneEnabled(!!selectedModelPath);
-      syncTuneUI(selectedModelCfg);
-      await loadGlasses(selectedModelPath,selectedModelCfg);
+      disableUnusedControls();
 
       startBtn.addEventListener("click",start);
       stopBtn.addEventListener("click",stop);
-      recalibrateBtn.addEventListener("click",()=>{
-        startFaceAnalysis();
-        setStatus("정면 재보정 시작");
-      });
+      recalibrateBtn.addEventListener("click",resetCalibration);
 
-      setStatus("대기 중");
+      pdInfo.textContent="정면 점수: 측정 전";
+      setStatus("대기 중: 카메라 시작 버튼을 눌러 주세요");
     }catch(err){
       setStatus("초기화 실패: 라이브러리 로드를 확인해 주세요");
       console.error(err);
