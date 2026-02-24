@@ -125,6 +125,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const offsetYVal=document.getElementById("offsetYVal");
   const offsetZVal=document.getElementById("offsetZVal");
   const scaleVal=document.getElementById("scaleVal");
+
   const pdInfo=document.getElementById("pdInfo");
   const frameColorInput=document.getElementById("frameColorInput");
   const frameColorVal=document.getElementById("frameColorVal");
@@ -133,14 +134,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const glossRange=document.getElementById("glossRange");
   const glossVal=document.getElementById("glossVal");
 
-  const TUNE_STORAGE_KEY="arModelTuneV2";
+  const TUNE_STORAGE_KEY="arModelTuneV3";
   const STYLE_STORAGE_KEY="arStyleV1";
 
   const MODEL_OPTIONS=[
     {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
-    {label:"모델 A",path:"/static/models/model_a.glb",yaw:0,pitch:0,roll:0,offsetY:-0.05,offsetZ:0.018,scale:0.78},
-    {label:"모델 B",path:"/static/models/model_b.glb",yaw:0,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82},
-    {label:"모델 C",path:"/static/models/model_c.glb",yaw:0,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82}
+    {label:"모델 A",path:"/static/models/model_a.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90},
+    {label:"모델 B",path:"/static/models/model_b.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90},
+    {label:"모델 C",path:"/static/models/model_c.glb",yaw:0,pitch:0,roll:0,offsetY:-0.030,offsetZ:0.020,scale:0.90}
   ];
 
   const LIB_SOURCES={
@@ -151,15 +152,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   };
 
   const FIT={
-    positionSmooth:0.20,
-    rotationSmooth:0.16,
-    scaleSmooth:0.20,
-    positionDeadzone:0.0036,
-    rotationDeadzoneDeg:1.8,
-    scaleDeadzone:0.018,
-    scaleMul:4.4,
-    minScale:0.28,
-    maxScale:2.4,
+    scaleMul:4.8,
+    minScale:0.34,
+    maxScale:2.6,
     yOffset:0,
     zOffset:0,
   };
@@ -169,60 +164,53 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const styleState={frameColor:"#111111",lensTint:32,gloss:58};
   const pdState={samples:[],valueMm:0,ready:false};
 
-  function deg(rad){ return rad*180/Math.PI; }
-  function rad(degVal){ return degVal*Math.PI/180; }
+  let renderer=null;
+  let scene=null;
+  let cam3d=null;
+  let mpCam=null;
+  let faceMesh=null;
+  let pipelineReady=false;
+  let glasses=null;
+  let fallback=null;
+  let modelRotQuat=null;
+  let modelOffsetY=0;
+  let modelOffsetZ=0;
+  let modelScaleMul=1;
+  let isModelSwitching=false;
+  let modelLoadSeq=0;
+  let viewZoom=1;
+
+  let selectedModelCfg=getEffectiveCfg(MODEL_OPTIONS[1].path);
+  let selectedModelPath=selectedModelCfg.path;
+
+  const analysisState={
+    active:false,
+    ready:false,
+    needed:28,
+    samples:null,
+    base:null,
+    count:0,
+  };
+
+  const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
+    ? window.ArPoseFilter.create({
+      posDeadzone:0.003,
+      rotDeadzoneDeg:1.4,
+      scaleDeadzone:0.012,
+      alphaMin:0.05,
+      alphaMax:0.17,
+      motionGain:0.16,
+      maxPosPerSec:1.0,
+      maxRotDegPerSec:52,
+      maxScalePerSec:0.50,
+    })
+    : null;
+
+  function deg(v){ return v*180/Math.PI; }
+  function rad(v){ return v*Math.PI/180; }
   function f2(v){ return Number(v).toFixed(2); }
   function f3(v){ return Number(v).toFixed(3); }
-
   function setStatus(txt){ status.textContent=txt; }
-
-  function loadTuneStorage(){
-    try{
-      const raw=localStorage.getItem(TUNE_STORAGE_KEY);
-      if(!raw)return;
-      const parsed=JSON.parse(raw);
-      if(!parsed||typeof parsed!=="object")return;
-      Object.keys(parsed).forEach((path)=>{
-        if(modelTune[path])Object.assign(modelTune[path],parsed[path]);
-      });
-    }catch(_){ }
-  }
-
-  function saveTuneStorage(){
-    try{ localStorage.setItem(TUNE_STORAGE_KEY,JSON.stringify(modelTune)); }catch(_){ }
-  }
-
-  function loadStyleStorage(){
-    try{
-      const raw=localStorage.getItem(STYLE_STORAGE_KEY);
-      if(!raw)return;
-      const parsed=JSON.parse(raw);
-      if(!parsed||typeof parsed!=="object")return;
-      if(typeof parsed.frameColor==="string")styleState.frameColor=parsed.frameColor;
-      if(Number.isFinite(parsed.lensTint))styleState.lensTint=Math.max(0,Math.min(100,parsed.lensTint));
-      if(Number.isFinite(parsed.gloss))styleState.gloss=Math.max(0,Math.min(100,parsed.gloss));
-    }catch(_){ }
-  }
-
-  function saveStyleStorage(){
-    try{ localStorage.setItem(STYLE_STORAGE_KEY,JSON.stringify(styleState)); }catch(_){ }
-  }
-
-  function getModelBase(path){
-    return MODEL_OPTIONS.find((m)=>m.path===path)||MODEL_OPTIONS[0];
-  }
-
-  function getEffectiveCfg(path){
-    const base=getModelBase(path);
-    if(!path)return {...base};
-    return {...base,...(modelTune[path]||{})};
-  }
-
-  function applyViewZoom(){
-    const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`;
-    video.style.transform=t;
-    canvas.style.transform=t;
-  }
 
   function loadScript(src){
     return new Promise((resolve,reject)=>{
@@ -265,49 +253,47 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }
   }
 
-  let renderer=null;
-  let scene=null;
-  let cam3d=null;
-  let mpCam=null;
-  let faceMesh=null;
-  let pipelineReady=false;
-  let glasses=null;
-  let fallback=null;
-  let selectedModelCfg=getEffectiveCfg(MODEL_OPTIONS[1].path);
-  let selectedModelPath=selectedModelCfg.path;
-  let modelLoadSeq=0;
-  let modelRotQuat=null;
-  let modelOffsetY=0;
-  let modelOffsetZ=0;
-  let modelScaleMul=1;
-  let isModelSwitching=false;
-  let viewZoom=1;
+  function loadTuneStorage(){
+    try{
+      const raw=localStorage.getItem(TUNE_STORAGE_KEY);
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!parsed||typeof parsed!=="object")return;
+      Object.keys(parsed).forEach((path)=>{ if(modelTune[path])Object.assign(modelTune[path],parsed[path]); });
+    }catch(_){ }
+  }
 
-  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null};
-  const analysisState={
-    active:false,
-    ready:false,
-    needed:36,
-    count:0,
-    samples:null,
-    base:null,
-  };
-  const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
-    ? window.ArPoseFilter.create({
-      posDeadzone:0.0032,
-      rotDeadzoneDeg:1.7,
-      scaleDeadzone:0.013,
-      alphaMin:0.045,
-      alphaMax:0.16,
-      motionGain:0.15,
-      maxPosPerSec:0.92,
-      maxRotDegPerSec:46,
-      maxScalePerSec:0.48,
-    })
-    : null;
+  function saveTuneStorage(){
+    try{ localStorage.setItem(TUNE_STORAGE_KEY,JSON.stringify(modelTune)); }catch(_){ }
+  }
 
-  
-  function medianLocal(arr){
+  function loadStyleStorage(){
+    try{
+      const raw=localStorage.getItem(STYLE_STORAGE_KEY);
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!parsed||typeof parsed!=="object")return;
+      if(typeof parsed.frameColor==="string")styleState.frameColor=parsed.frameColor;
+      if(Number.isFinite(parsed.lensTint))styleState.lensTint=Math.max(0,Math.min(100,parsed.lensTint));
+      if(Number.isFinite(parsed.gloss))styleState.gloss=Math.max(0,Math.min(100,parsed.gloss));
+    }catch(_){ }
+  }
+
+  function saveStyleStorage(){
+    try{ localStorage.setItem(STYLE_STORAGE_KEY,JSON.stringify(styleState)); }catch(_){ }
+  }
+
+  function getModelBase(path){
+    return MODEL_OPTIONS.find((m)=>m.path===path)||MODEL_OPTIONS[0];
+  }
+
+  function getEffectiveCfg(path){
+    const base=getModelBase(path);
+    if(!path)return {...base};
+    return {...base,...(modelTune[path]||{})};
+  }
+
+  function median(arr){
     if(!arr||arr.length===0)return 0;
     const sorted=[...arr].sort((a,b)=>a-b);
     const mid=Math.floor(sorted.length*0.5);
@@ -332,9 +318,46 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     pdState.samples.push(mm);
     if(pdState.samples.length>45)pdState.samples.shift();
     if(pdState.samples.length<8)return;
-    pdState.valueMm=medianLocal(pdState.samples);
+    pdState.valueMm=median(pdState.samples);
     pdState.ready=true;
     pdInfo.textContent=`AI PD: ${pdState.valueMm.toFixed(1)} mm`;
+  }
+
+  function applyViewZoom(){
+    const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`;
+    video.style.transform=t;
+    canvas.style.transform=t;
+  }
+
+  function initRenderer(){
+    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    if("outputColorSpace" in renderer&&THREE.SRGBColorSpace)renderer.outputColorSpace=THREE.SRGBColorSpace;
+    if("toneMapping" in renderer)renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    if("toneMappingExposure" in renderer)renderer.toneMappingExposure=1.04;
+
+    scene=new THREE.Scene();
+    cam3d=new THREE.PerspectiveCamera(45,1,0.1,100);
+    cam3d.position.set(0,0,3.2);
+
+    scene.add(new THREE.AmbientLight(0xffffff,1.08));
+    scene.add(new THREE.HemisphereLight(0xeaf2ff,0x2d2e35,0.58));
+    const keyLight=new THREE.DirectionalLight(0xffffff,0.95);
+    keyLight.position.set(0.2,1.8,2.2);
+    scene.add(keyLight);
+
+    const resize=()=>{
+      const w=canvas.clientWidth||640;
+      const h=canvas.clientHeight||480;
+      renderer.setSize(w,h,false);
+      cam3d.aspect=w/h;
+      cam3d.updateProjectionMatrix();
+    };
+    window.addEventListener("resize",resize);
+    resize();
+
+    modelRotQuat=new THREE.Quaternion();
+    applyViewZoom();
   }
 
   function ensureMat(node){
@@ -407,39 +430,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     glossRange.addEventListener("input",onStyle);
   }
 
-  function initRenderer(){
-    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-    if("outputColorSpace" in renderer&&THREE.SRGBColorSpace)renderer.outputColorSpace=THREE.SRGBColorSpace;
-    if("toneMapping" in renderer)renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    if("toneMappingExposure" in renderer)renderer.toneMappingExposure=1.06;
-    scene=new THREE.Scene();
-    cam3d=new THREE.PerspectiveCamera(45,1,0.1,100);
-    cam3d.position.set(0,0,3.2);
-    scene.add(new THREE.AmbientLight(0xffffff,1.1));
-    scene.add(new THREE.HemisphereLight(0xdde8ff,0x2f2f36,0.55));
-    const keyLight=new THREE.DirectionalLight(0xffffff,1.0);
-    keyLight.position.set(0,1.8,2.3);
-    scene.add(keyLight);
-
-    const resize=()=>{
-      const w=canvas.clientWidth||640;
-      const h=canvas.clientHeight||480;
-      renderer.setSize(w,h,false);
-      cam3d.aspect=w/h;
-      cam3d.updateProjectionMatrix();
-    };
-    window.addEventListener("resize",resize);
-    resize();
-
-    fitState.position=new THREE.Vector3();
-    fitState.quaternion=new THREE.Quaternion();
-    fitState.targetQuaternion=new THREE.Quaternion();
-    modelRotQuat=new THREE.Quaternion();
-
-    applyViewZoom();
-  }
-
   function createFallbackGlasses(){
     const group=new THREE.Group();
     const mat=new THREE.MeshStandardMaterial({color:0x2b3b54,roughness:0.35,metalness:0.2});
@@ -495,6 +485,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function normalizeLoadedGlasses(root){
     if(!root)return root;
 
+    root.position.set(0,0,0);
+    root.rotation.set(0,0,0);
+    root.scale.set(1,1,1);
+
     const yawCandidates=[0,Math.PI*0.5,-Math.PI*0.5,Math.PI];
     let bestYaw=0;
     let bestScore=-Infinity;
@@ -506,7 +500,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       if(size.x<=1e-6||size.y<=1e-6||size.z<=1e-6)return;
       const width=Math.max(size.x,size.z);
       const depth=Math.min(size.x,size.z);
-      const score=width-(depth*0.35);
+      const score=width/(depth+1e-6);
       if(score>bestScore){
         bestScore=score;
         bestYaw=yaw;
@@ -519,20 +513,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     let {box,size}=safeBoxSize(root);
     const width=Math.max(size.x,size.z);
     if(width>1e-6){
-      const targetWidth=1.08;
-      const normScale=targetWidth/width;
-      root.scale.multiplyScalar(normScale);
+      const targetWidth=1.10;
+      root.scale.multiplyScalar(targetWidth/width);
       root.updateMatrixWorld(true);
       ({box,size}=safeBoxSize(root));
     }
 
     const center=new THREE.Vector3();
     box.getCenter(center);
-    const bridgePivot=new THREE.Vector3(
-      center.x,
-      box.min.y+(size.y*0.53),
-      center.z
-    );
+    const bridgePivot=new THREE.Vector3(center.x,box.min.y+(size.y*0.56),center.z);
     root.position.sub(bridgePivot);
     root.updateMatrixWorld(true);
     return root;
@@ -547,13 +536,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function toSceneVec(p){ return new THREE.Vector3(p.x,-p.y,-p.z); }
 
   function getPose(points){
-    const left=points[234],right=points[454],nose=points[6],bridge=points[168],forehead=points[10],chin=points[152];
+    const left=points[234],right=points[454],nose=points[6],bridge=points[168],chin=points[152];
     const eyeL=points[33],eyeR=points[263],earL=points[127],earR=points[356];
-    if(!left||!right||!nose||!bridge||!forehead||!chin||!eyeL||!eyeR)return null;
+    if(!left||!right||!nose||!bridge||!chin||!eyeL||!eyeR)return null;
 
     const pupilR=points[468],pupilL=points[473];
     const rollL=pupilL||eyeL;
     const rollR=pupilR||eyeR;
+
     const rightVec=toSceneVec({x:rollR.x-rollL.x,y:rollR.y-rollL.y,z:rollR.z-rollL.z});
     const upHint=toSceneVec({x:bridge.x-chin.x,y:bridge.y-chin.y,z:bridge.z-chin.z});
     if(rightVec.lengthSq()<1e-8||upHint.lengthSq()<1e-8)return null;
@@ -570,6 +560,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       yAxis.multiplyScalar(-1);
       zAxis.multiplyScalar(-1);
     }
+
     const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
     const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
     const euler=new THREE.Euler().setFromQuaternion(quat,"YXZ");
@@ -579,18 +570,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const pupilMidX=(pupilR&&pupilL)?(pupilR.x+pupilL.x)*0.5:eyeCenterX;
     const pupilMidY=(pupilR&&pupilL)?(pupilR.y+pupilL.y)*0.5:eyeCenterY;
 
-    let anchorX=bridge.x*0.56+pupilMidX*0.40+nose.x*0.04;
-    let anchorY=bridge.y*0.46+pupilMidY*0.48+nose.y*0.06;
-    if(analysisState.ready&&analysisState.base){
-      const eTmp=new THREE.Euler().setFromQuaternion(quat,"YXZ");
-      const frontal=THREE.MathUtils.clamp(
-        1-((Math.abs(eTmp.x)/THREE.MathUtils.degToRad(20))+(Math.abs(eTmp.y)/THREE.MathUtils.degToRad(26)))*0.5,
-        0,
-        1
-      );
-      anchorX=anchorX*(1-(0.14*frontal))+analysisState.base.anchorX*(0.14*frontal);
-      anchorY=anchorY*(1-(0.12*frontal))+analysisState.base.anchorY*(0.12*frontal);
-    }
+    const anchorX=bridge.x*0.50+pupilMidX*0.45+nose.x*0.05;
+    const anchorY=bridge.y*0.44+pupilMidY*0.50+nose.y*0.06;
 
     const pos=ndcToWorld(anchorX,anchorY);
     pos.y+=FIT.yOffset;
@@ -602,41 +583,40 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const earSpan2d=(earL&&earR)?Math.hypot(earR.x-earL.x,earR.y-earL.y):faceWidth2d;
     const noseBridgeDepth=Math.abs((nose.z||0)-(bridge.z||0));
     const earDepth=(earL&&earR)?Math.abs((earR.z||0)-(earL.z||0)):noseBridgeDepth;
-    const scaleSeed=(pdNorm*0.64)+(faceWidth2d*0.30)+(earSpan2d*0.06);
-    const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
 
+    const scaleSeed=(pdNorm*0.58)+(faceWidth2d*0.30)+(earSpan2d*0.12);
+    const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
     const eyeRoll=Math.atan2(rollR.y-rollL.y,rollR.x-rollL.x);
 
-    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,pdNorm,faceWidth2d,earSpan2d,noseBridgeDepth,earDepth,pitch:euler.x,yaw:euler.y,roll:euler.z,eyeRoll};
+    return {
+      position:pos,
+      quaternion:quat,
+      scale,
+      anchorX,
+      anchorY,
+      pdNorm,
+      faceWidth2d,
+      earSpan2d,
+      noseBridgeDepth,
+      earDepth,
+      eyeRoll,
+      pitch:euler.x,
+      yaw:euler.y,
+      roll:euler.z,
+    };
   }
 
-  function isFrontalCandidate(pose){
+  function isFrontalPose(pose){
     if(!pose)return false;
     const pitchAbs=Math.abs(deg(pose.pitch||0));
     const yawAbs=Math.abs(deg(pose.yaw||0));
-    return pitchAbs<=13&&yawAbs<=16;
-  }
-
-  function syncModelTransform(cfg){
-    if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
-    modelOffsetY=cfg.offsetY||0;
-    modelOffsetZ=cfg.offsetZ||0;
-    modelScaleMul=cfg.scale||1;
-    fitState.initialized=false;
-    if(poseFilter)poseFilter.reset();
-  }
-
-  function median(arr){
-    if(!arr||arr.length===0)return 0;
-    const sorted=[...arr].sort((a,b)=>a-b);
-    const mid=Math.floor(sorted.length*0.5);
-    return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])*0.5;
+    return pitchAbs<=12&&yawAbs<=16;
   }
 
   function resetFaceAnalysis(){
     analysisState.count=0;
     analysisState.samples={
-      anchorX:[],anchorY:[],eyeDist:[],pdNorm:[],faceWidth:[],earSpan:[],noseBridgeDepth:[],earDepth:[],roll:[],eyeRoll:[],pitch:[],yaw:[],scale:[]
+      anchorX:[],anchorY:[],pdNorm:[],faceWidth:[],earSpan:[],depth:[],roll:[],eyeRoll:[],scale:[]
     };
   }
 
@@ -645,26 +625,22 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     analysisState.ready=false;
     analysisState.base=null;
     resetFaceAnalysis();
-    fitState.initialized=false;
     if(poseFilter)poseFilter.reset();
-    hideModel();
     setStatus("얼굴 분석 중... 정면을 1초 유지해 주세요");
   }
 
   function pushFaceSample(pose){
     if(!analysisState.active||!analysisState.samples)return;
+    if(!isFrontalPose(pose))return;
+
     analysisState.samples.anchorX.push(pose.anchorX);
     analysisState.samples.anchorY.push(pose.anchorY);
-    analysisState.samples.eyeDist.push(pose.eyeDist2d);
     analysisState.samples.pdNorm.push(pose.pdNorm);
     analysisState.samples.faceWidth.push(pose.faceWidth2d);
     analysisState.samples.earSpan.push(pose.earSpan2d);
-    analysisState.samples.noseBridgeDepth.push(pose.noseBridgeDepth);
-    analysisState.samples.earDepth.push(pose.earDepth);
+    analysisState.samples.depth.push((pose.noseBridgeDepth*0.65)+(pose.earDepth*0.35));
     analysisState.samples.roll.push(pose.roll);
     analysisState.samples.eyeRoll.push(pose.eyeRoll);
-    analysisState.samples.pitch.push(pose.pitch);
-    analysisState.samples.yaw.push(pose.yaw);
     analysisState.samples.scale.push(pose.scale);
     analysisState.count++;
 
@@ -672,26 +648,38 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       analysisState.base={
         anchorX:median(analysisState.samples.anchorX),
         anchorY:median(analysisState.samples.anchorY),
-        eyeDist:median(analysisState.samples.eyeDist),
         pdNorm:median(analysisState.samples.pdNorm),
         faceWidth:median(analysisState.samples.faceWidth),
         earSpan:median(analysisState.samples.earSpan),
-        noseBridgeDepth:median(analysisState.samples.noseBridgeDepth),
-        earDepth:median(analysisState.samples.earDepth),
+        depth:median(analysisState.samples.depth),
         roll:median(analysisState.samples.roll),
         eyeRoll:median(analysisState.samples.eyeRoll),
-        pitch:median(analysisState.samples.pitch),
-        yaw:median(analysisState.samples.yaw),
         scale:median(analysisState.samples.scale),
       };
       analysisState.active=false;
       analysisState.ready=true;
-      fitState.initialized=false;
+      if(poseFilter)poseFilter.reset();
       setStatus("얼굴 분석 완료: 피팅 시작");
-    }else if((analysisState.count%8)===0){
+      return;
+    }
+
+    if((analysisState.count%8)===0){
       const p=Math.min(100,Math.round((analysisState.count/analysisState.needed)*100));
       setStatus(`얼굴 분석 중... ${p}%`);
     }
+  }
+
+  function hideModel(){
+    if(glasses)glasses.visible=false;
+    if(fallback)fallback.visible=false;
+  }
+
+  function syncModelTransform(cfg){
+    if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
+    modelOffsetY=cfg.offsetY||0;
+    modelOffsetZ=cfg.offsetZ||0;
+    modelScaleMul=cfg.scale||1;
+    if(poseFilter)poseFilter.reset();
   }
 
   function applyModel(pose){
@@ -700,48 +688,39 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
-    if(!analysisState.ready){
-      if(!analysisState.active)startFaceAnalysis();
-      if(!isFrontalCandidate(pose)){
-        setStatus("얼굴 분석 중... 정면 권장");
-      }
-      pushFaceSample(pose);
-    }
+    if(!analysisState.ready&& !analysisState.active)startFaceAnalysis();
+    if(analysisState.active)pushFaceSample(pose);
 
-    let correctedQuat=pose.quaternion;
+    const correctedQuat=pose.quaternion.clone();
+    const e=new THREE.Euler().setFromQuaternion(correctedQuat,"YXZ");
     let targetScale=pose.scale;
+    let depthDelta=0;
 
     if(analysisState.base){
-      const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
       const pitchAbs=Math.abs(e.x);
       const yawAbs=Math.abs(e.y);
-      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(16))+(yawAbs/THREE.MathUtils.degToRad(22)))*0.5,0.04,1);
-      const rollGain=0.018+(frontalFactor*0.055);
-      const rollDelta=(analysisState.base.eyeRoll-pose.eyeRoll)*rollGain;
-      const rollClamp=THREE.MathUtils.degToRad(3.5);
-      const rollBase=analysisState.base.roll||0;
-      const dynamicRoll=THREE.MathUtils.clamp(rollBase+rollDelta,rollBase-rollClamp,rollBase+rollClamp);
-      const frontalLevelLock=THREE.MathUtils.clamp((frontalFactor-0.62)/0.38,0,1);
-      e.z=THREE.MathUtils.lerp(dynamicRoll,rollBase,frontalLevelLock*0.88);
-      correctedQuat=new THREE.Quaternion().setFromEuler(e);
+      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(16))+(yawAbs/THREE.MathUtils.degToRad(22)))*0.5,0.05,1);
 
-      const pdBase=Math.max(analysisState.base.pdNorm||analysisState.base.eyeDist||1e-6,1e-6);
-      const pdNow=Math.max(pose.pdNorm||pose.eyeDist2d||1e-6,1e-6);
-      const pdRatio=THREE.MathUtils.clamp(pdNow/pdBase,0.84,1.22);
-      const baseSpan=Math.max(analysisState.base.earSpan||analysisState.base.faceWidth||1e-6,1e-6);
-      const nowSpan=Math.max(pose.earSpan2d||pose.faceWidth2d||1e-6,1e-6);
-      const widthRatio=THREE.MathUtils.clamp(nowSpan/baseSpan,0.84,1.22);
-      const baseScale=Math.max(analysisState.base.scale||pose.scale||FIT.minScale,FIT.minScale);
-      const depthMix=(pdRatio*0.55)+(widthRatio*0.45);
-      const blendedDepth=THREE.MathUtils.lerp(1,depthMix,0.66);
-      targetScale=THREE.MathUtils.clamp(baseScale*blendedDepth,FIT.minScale,FIT.maxScale);
+      const rollGain=0.02+(frontalFactor*0.05);
+      const rollClamp=THREE.MathUtils.degToRad(3.2);
+      const rollDelta=(analysisState.base.eyeRoll-pose.eyeRoll)*rollGain;
+      const dynamicRoll=THREE.MathUtils.clamp((analysisState.base.roll||0)+rollDelta,(analysisState.base.roll||0)-rollClamp,(analysisState.base.roll||0)+rollClamp);
+      const frontalLock=THREE.MathUtils.clamp((frontalFactor-0.6)/0.4,0,1);
+      e.z=THREE.MathUtils.lerp(dynamicRoll,analysisState.base.roll||0,frontalLock*0.9);
+      correctedQuat.setFromEuler(e);
+
+      const pdRatio=THREE.MathUtils.clamp((pose.pdNorm||1e-6)/Math.max(analysisState.base.pdNorm||1e-6,1e-6),0.86,1.18);
+      const widthNow=Math.max((pose.faceWidth2d*0.65)+(pose.earSpan2d*0.35),1e-6);
+      const widthBase=Math.max((analysisState.base.faceWidth*0.65)+(analysisState.base.earSpan*0.35),1e-6);
+      const widthRatio=THREE.MathUtils.clamp(widthNow/widthBase,0.86,1.18);
+      const depthMix=(pdRatio*0.58)+(widthRatio*0.42);
+      targetScale=THREE.MathUtils.clamp((analysisState.base.scale||pose.scale)*THREE.MathUtils.lerp(1,depthMix,0.72),FIT.minScale,FIT.maxScale);
+
+      const depthNow=(pose.noseBridgeDepth*0.65)+(pose.earDepth*0.35);
+      depthDelta=THREE.MathUtils.clamp((depthNow-(analysisState.base.depth||depthNow))*1.45,-0.055,0.055);
     }
 
     const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
-    const baseDepth=((analysisState.base?.noseBridgeDepth||pose.noseBridgeDepth||0)*0.65)+((analysisState.base?.earDepth||pose.earDepth||0)*0.35);
-    const nowDepth=((pose.noseBridgeDepth||0)*0.65)+((pose.earDepth||0)*0.35);
-    const depthDelta=THREE.MathUtils.clamp((nowDepth-baseDepth)*1.6,-0.06,0.06);
-
     const rawPose={
       px:pose.position.x,
       py:pose.position.y,
@@ -752,31 +731,24 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       qw:correctedQuat.w,
       scale:targetScale,
     };
+
     const filtered=poseFilter?poseFilter.update(rawPose,nowMs):rawPose;
 
-    fitState.position.set(filtered.px,filtered.py,filtered.pz);
-    fitState.quaternion.set(filtered.qx,filtered.qy,filtered.qz,filtered.qw);
-    fitState.scale=filtered.scale;
-    fitState.initialized=true;
-
     target.visible=true;
-    target.position.copy(fitState.position);
+    target.position.set(filtered.px,filtered.py,filtered.pz);
     if(target===glasses){
       target.position.y+=modelOffsetY;
       target.position.z+=modelOffsetZ;
     }
-    target.quaternion.copy(fitState.quaternion);
-    if(target===glasses&&modelRotQuat)target.quaternion.premultiply(modelRotQuat);
-    target.scale.setScalar(target===glasses?fitState.scale*modelScaleMul:fitState.scale);
-  }
 
-  function hideModel(){
-    if(glasses)glasses.visible=false;
-    if(fallback)fallback.visible=false;
+    target.quaternion.set(filtered.qx,filtered.qy,filtered.qz,filtered.qw);
+    if(target===glasses&&modelRotQuat)target.quaternion.premultiply(modelRotQuat);
+    target.scale.setScalar(target===glasses?filtered.scale*modelScaleMul:filtered.scale);
   }
 
   function ensurePipeline(){
     if(pipelineReady)return;
+
     faceMesh=new FaceMesh({locateFile:(f)=>`/static/vendor/${f}`});
     faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.55,minTrackingConfidence:0.55});
     faceMesh.onResults((results)=>{
@@ -785,10 +757,13 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         const pd=estimatePdMm(pts);
         if(pd!==null)pushPdSample(pd);
         const pose=getPose(pts);
-        if(pose)applyModel(pose); else hideModel();
+        if(pose)applyModel(pose);
+        else hideModel();
       }else hideModel();
+
       renderer.render(scene,cam3d);
     });
+
     pipelineReady=true;
   }
 
@@ -797,19 +772,20 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     isModelSwitching=true;
     clearGlasses();
     if(fallback)fallback.visible=false;
-    if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
 
     if(!path){
       if(modelRotQuat)modelRotQuat.identity();
-      modelOffsetY=0; modelOffsetZ=0; modelScaleMul=1;
-      setStatus("기본 프레임 모드");
+      modelOffsetY=0;
+      modelOffsetZ=0;
+      modelScaleMul=1;
       isModelSwitching=false;
+      setStatus("기본 프레임 모드");
       return;
     }
 
     if(!THREE.GLTFLoader){
-      setStatus("GLB 로더 없음: 기본 프레임 사용");
       isModelSwitching=false;
+      setStatus("GLB 로더 없음: 기본 프레임 사용");
       return;
     }
 
@@ -821,13 +797,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         glasses=gltf.scene;
         normalizeLoadedGlasses(glasses);
         glasses.visible=false;
-        glasses.scale.setScalar(0.95);
         scene.add(glasses);
         applyStyleToObject(glasses);
         if(fallback)fallback.visible=false;
         syncModelTransform(cfg);
-        setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         isModelSwitching=false;
+        setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         resolve();
       },undefined,()=>{
         if(seq===modelLoadSeq)setStatus("선택 모델 로드 실패: 기본 프레임 사용");
@@ -861,7 +836,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function setupTuneControls(){
     const onChange=()=>{
       if(!selectedModelPath)return;
-
       const tune={
         yaw:rad(Number(yawRange.value)),
         pitch:rad(Number(pitchRange.value)),
@@ -870,7 +844,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         offsetZ:Number(offsetZRange.value),
         scale:Number(scaleRange.value),
       };
-      modelTune[selectedModelPath]={...modelTune[selectedModelPath],...tune};
+
+      modelTune[selectedModelPath]={...(modelTune[selectedModelPath]||{}),...tune};
       selectedModelCfg=getEffectiveCfg(selectedModelPath);
       syncModelTransform(selectedModelCfg);
       saveTuneStorage();
@@ -908,6 +883,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       el.textContent=opt.label;
       modelSelect.appendChild(el);
     });
+
     modelSelect.value=selectedModelPath;
     modelSelect.addEventListener("change",async()=>{
       selectedModelPath=modelSelect.value;
@@ -918,24 +894,31 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     });
   }
 
+  function setupZoomControls(){
+    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
+    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
+    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); setStatus("화면 배율: 1.0x"); });
+  }
+
   async function start(){
     try{
       setStatus("카메라 시작 중...");
-      fitState.initialized=false;
       startFaceAnalysis();
 
       if(!pipelineReady)ensurePipeline();
       if(typeof Camera==="undefined")throw new Error("Camera unavailable");
+
       if(!mpCam){
         mpCam=new Camera(video,{onFrame:async()=>{ await faceMesh.send({image:video}); },width:960,height:720});
       }
+
       await mpCam.start();
       startBtn.disabled=true;
       setStatus("실행 중");
     }catch(err){
-      const msg=String(err?.message||"");
-      if(/secure|https/i.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요");
-      else if(/denied|notallowed|permission/i.test(msg.toLowerCase()))setStatus("카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요");
+      const msg=String(err?.message||"").toLowerCase();
+      if(/secure|https/.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요");
+      else if(/denied|notallowed|permission/.test(msg))setStatus("카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요");
       else setStatus("카메라 시작 실패: 라이브러리/권한 확인 필요");
       console.error(err);
     }
@@ -948,54 +931,44 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         video.srcObject=null;
       }
       hideModel();
-      fitState.initialized=false;
       if(poseFilter)poseFilter.reset();
-      if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
       startBtn.disabled=false;
       setStatus("중지됨");
     }catch(_){ }
-  }
-
-  function setupZoomControls(){
-    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
-    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
-    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); setStatus("화면 배율: 1.0x"); });
   }
 
   async function boot(){
     try{
       loadTuneStorage();
       loadStyleStorage();
+      syncStyleUI();
       await ensureDeps();
       initRenderer();
       fallback=createFallbackGlasses();
+
+      selectedModelCfg=getEffectiveCfg(selectedModelPath);
       setupModelSelect();
       setupTuneControls();
       setupStyleControls();
       setupZoomControls();
-      syncStyleUI();
 
-      selectedModelCfg=getEffectiveCfg(selectedModelPath);
       setTuneEnabled(!!selectedModelPath);
       syncTuneUI(selectedModelCfg);
-
       await loadGlasses(selectedModelPath,selectedModelCfg);
+
+      startBtn.addEventListener("click",start);
+      stopBtn.addEventListener("click",stop);
+      recalibrateBtn.addEventListener("click",()=>{
+        startFaceAnalysis();
+        setStatus("정면 재보정 시작");
+      });
+
       setStatus("대기 중");
     }catch(err){
+      setStatus("초기화 실패: 라이브러리 로드를 확인해 주세요");
       console.error(err);
-      setStatus("초기화 실패: 네트워크/스크립트 로드 확인 필요");
     }
   }
-
-  startBtn.addEventListener("click",start);
-  stopBtn.addEventListener("click",stop);
-  recalibrateBtn.addEventListener("click",()=>{
-    startFaceAnalysis();
-  });
-  window.addEventListener("error",(evt)=>{
-    const msg=String(evt?.message||"");
-    if(msg)setStatus(`오류: ${msg}`);
-  });
 
   boot();
 })();
