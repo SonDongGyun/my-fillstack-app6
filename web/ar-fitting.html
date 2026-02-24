@@ -516,11 +516,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     const eyeCenterX=(eyeL.x+eyeR.x)*0.5;
     const eyeCenterY=(eyeL.y+eyeR.y)*0.5;
-    let anchorX=bridge.x*0.70+eyeCenterX*0.22+nose.x*0.08;
-    let anchorY=bridge.y*0.70+eyeCenterY*0.22+nose.y*0.08;
+    const pupilR=points[468],pupilL=points[473];
+    const pupilMidX=(pupilR&&pupilL)?(pupilR.x+pupilL.x)*0.5:eyeCenterX;
+    const pupilMidY=(pupilR&&pupilL)?(pupilR.y+pupilL.y)*0.5:eyeCenterY;
+
+    let anchorX=bridge.x*0.62+pupilMidX*0.33+nose.x*0.05;
+    let anchorY=bridge.y*0.66+pupilMidY*0.29+nose.y*0.05;
     if(analysisState.ready&&analysisState.base){
-      anchorX=anchorX*0.65+analysisState.base.anchorX*0.35;
-      anchorY=anchorY*0.65+analysisState.base.anchorY*0.35;
+      anchorX=anchorX*0.55+analysisState.base.anchorX*0.45;
+      anchorY=anchorY*0.55+analysisState.base.anchorY*0.45;
     }
 
     const pos=ndcToWorld(anchorX,anchorY);
@@ -528,14 +532,19 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     pos.z+=FIT.zOffset;
 
     const eyeDist2d=Math.hypot(eyeR.x-eyeL.x,eyeR.y-eyeL.y);
+    const pdNorm=(pupilR&&pupilL)?Math.hypot(pupilL.x-pupilR.x,pupilL.y-pupilR.y):eyeDist2d;
     const faceWidth2d=Math.hypot(right.x-left.x,right.y-left.y);
     const earSpan2d=(earL&&earR)?Math.hypot(earR.x-earL.x,earR.y-earL.y):faceWidth2d;
     const noseBridgeDepth=Math.abs((nose.z||0)-(bridge.z||0));
     const earDepth=(earL&&earR)?Math.abs((earR.z||0)-(earL.z||0)):noseBridgeDepth;
-    const scaleSeed=eyeDist2d*0.62+faceWidth2d*0.23+earSpan2d*0.15;
+    const scaleSeed=(pdNorm*0.70)+(faceWidth2d*0.20)+(earSpan2d*0.10);
     const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
 
-    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,faceWidth2d,earSpan2d,noseBridgeDepth,earDepth,pitch:euler.x,roll:euler.z};
+    const rollL=pupilL||eyeL;
+    const rollR=pupilR||eyeR;
+    const eyeRoll=Math.atan2(rollR.y-rollL.y,rollR.x-rollL.x);
+
+    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,pdNorm,faceWidth2d,earSpan2d,noseBridgeDepth,earDepth,pitch:euler.x,yaw:euler.y,roll:euler.z,eyeRoll};
   }
 
   function syncModelTransform(cfg){
@@ -557,7 +566,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function resetFaceAnalysis(){
     analysisState.count=0;
     analysisState.samples={
-      anchorX:[],anchorY:[],eyeDist:[],faceWidth:[],earSpan:[],noseBridgeDepth:[],earDepth:[],roll:[],pitch:[]
+      anchorX:[],anchorY:[],eyeDist:[],pdNorm:[],faceWidth:[],earSpan:[],noseBridgeDepth:[],earDepth:[],roll:[],eyeRoll:[],pitch:[],yaw:[]
     };
   }
 
@@ -577,12 +586,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     analysisState.samples.anchorX.push(pose.anchorX);
     analysisState.samples.anchorY.push(pose.anchorY);
     analysisState.samples.eyeDist.push(pose.eyeDist2d);
+    analysisState.samples.pdNorm.push(pose.pdNorm);
     analysisState.samples.faceWidth.push(pose.faceWidth2d);
     analysisState.samples.earSpan.push(pose.earSpan2d);
     analysisState.samples.noseBridgeDepth.push(pose.noseBridgeDepth);
     analysisState.samples.earDepth.push(pose.earDepth);
     analysisState.samples.roll.push(pose.roll);
+    analysisState.samples.eyeRoll.push(pose.eyeRoll);
     analysisState.samples.pitch.push(pose.pitch);
+    analysisState.samples.yaw.push(pose.yaw);
     analysisState.count++;
 
     if(analysisState.count>=analysisState.needed){
@@ -590,12 +602,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         anchorX:median(analysisState.samples.anchorX),
         anchorY:median(analysisState.samples.anchorY),
         eyeDist:median(analysisState.samples.eyeDist),
+        pdNorm:median(analysisState.samples.pdNorm),
         faceWidth:median(analysisState.samples.faceWidth),
         earSpan:median(analysisState.samples.earSpan),
         noseBridgeDepth:median(analysisState.samples.noseBridgeDepth),
         earDepth:median(analysisState.samples.earDepth),
         roll:median(analysisState.samples.roll),
+        eyeRoll:median(analysisState.samples.eyeRoll),
         pitch:median(analysisState.samples.pitch),
+        yaw:median(analysisState.samples.yaw),
       };
       analysisState.active=false;
       analysisState.ready=true;
@@ -626,16 +641,22 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(analysisState.base){
       const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
       const pitchAbs=Math.abs(e.x);
-      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(26))?0.06:(pitchAbs>THREE.MathUtils.degToRad(14)?0.14:0.26);
-      const rollDelta=(e.z-analysisState.base.roll)*rollGain;
-      const rollClamp=THREE.MathUtils.degToRad(8);
+      const yawAbs=Math.abs(e.y);
+      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(24))+(yawAbs/THREE.MathUtils.degToRad(30)))*0.5,0.08,1);
+      const rollGain=0.05+(frontalFactor*0.13);
+      const rollDelta=(pose.eyeRoll-analysisState.base.eyeRoll)*rollGain;
+      const rollClamp=THREE.MathUtils.degToRad(6);
       e.z=THREE.MathUtils.clamp(rollDelta,-rollClamp,rollClamp);
       correctedQuat=new THREE.Quaternion().setFromEuler(e);
 
-      const baseSpan=Math.max(analysisState.base.earSpan||0,analysisState.base.faceWidth||0,1e-6);
-      const nowSpan=Math.max(pose.earSpan2d||0,pose.faceWidth2d||0,1e-6);
-      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.94,1.06);
-      targetScale=pose.scale*(0.88+(widthRatio*0.12));
+      const pdBase=Math.max(analysisState.base.pdNorm||analysisState.base.eyeDist||1e-6,1e-6);
+      const pdNow=Math.max(pose.pdNorm||pose.eyeDist2d||1e-6,1e-6);
+      const pdRatio=THREE.MathUtils.clamp(pdBase/pdNow,0.93,1.07);
+      const baseSpan=Math.max(analysisState.base.earSpan||analysisState.base.faceWidth||1e-6,1e-6);
+      const nowSpan=Math.max(pose.earSpan2d||pose.faceWidth2d||1e-6,1e-6);
+      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.95,1.05);
+      targetScale=pose.scale*(0.90+(pdRatio*0.10));
+      targetScale*=0.97+(widthRatio*0.03);
     }
 
     const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
