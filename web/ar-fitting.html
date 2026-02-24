@@ -73,10 +73,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const status=document.getElementById("status");
 
   const MODEL_OPTIONS=[
-    {label:"기본 프레임 (모델 없음)",path:""},
-    {label:"모델 A",path:"/static/models/model_a.glb"},
-    {label:"모델 B",path:"/static/models/model_b.glb"},
-    {label:"모델 C",path:"/static/models/model_c.glb"}
+    {label:"기본 프레임 (모델 없음)",path:"",yaw:0},
+    {label:"모델 A",path:"/static/models/model_a.glb",yaw:Math.PI/2},
+    {label:"모델 B",path:"/static/models/model_b.glb",yaw:Math.PI/2},
+    {label:"모델 C",path:"/static/models/model_c.glb",yaw:Math.PI/2}
   ];
 
   const LIB_SOURCES={
@@ -149,7 +149,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let glasses=null;
   let fallback=null;
   let selectedModelPath=MODEL_OPTIONS[1].path;
+  let selectedModelYaw=MODEL_OPTIONS[1].yaw||0;
   let modelLoadSeq=0;
+  let modelRotQuat=null;
 
   const fitState={
     initialized:false,
@@ -284,6 +286,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     target.visible=true;
     target.position.copy(fitState.position);
     target.quaternion.copy(fitState.quaternion);
+    if(target===glasses&&modelRotQuat)target.quaternion.multiply(modelRotQuat);
     target.scale.setScalar(fitState.scale);
   }
 
@@ -308,11 +311,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     pipelineReady=true;
   }
 
-  async function loadGlasses(path){
+  async function loadGlasses(path,yaw=0){
     const seq=++modelLoadSeq;
     clearGlasses();
 
     if(!path){
+      if(modelRotQuat)modelRotQuat.identity();
       setStatus("기본 프레임 모드");
       return;
     }
@@ -334,6 +338,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
+        if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(0,yaw,0));
         fitState.initialized=false;
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         resolve();
@@ -355,7 +360,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     modelSelect.value=selectedModelPath;
     modelSelect.addEventListener("change",async()=>{
       selectedModelPath=modelSelect.value;
-      await loadGlasses(selectedModelPath);
+      const current=MODEL_OPTIONS.find((m)=>m.path===selectedModelPath);
+      selectedModelYaw=current?current.yaw||0:0;
+      await loadGlasses(selectedModelPath,selectedModelYaw);
     });
   }
 
@@ -399,7 +406,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       initRenderer();
       fallback=createFallbackGlasses();
       setupModelSelect();
-      await loadGlasses(selectedModelPath);
+      await loadGlasses(selectedModelPath,selectedModelYaw);
       setStatus("대기 중");
     }catch(err){
       console.error(err);
