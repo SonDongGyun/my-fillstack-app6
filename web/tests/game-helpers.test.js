@@ -25,6 +25,6 @@ test("game-helpers fallback values",()=>{
   const helper=create({logic:{},gazeCfg:{},rand:()=>0.1});
   const seq=helper.makeGazeSequence();
   assert.equal(seq.length,10);
-  assert.equal(helper.dirLabel("UP"),"Á¤¸é");
+  assert.equal(helper.dirLabel("UP"),"ì •ë©´");
   assert.equal(helper.isDirectionMatch("LEFT",{x:-1}),false);
 });

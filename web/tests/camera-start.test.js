@@ -36,5 +36,5 @@ test("camera-start fails when camera libs unavailable", async()=>{
   const start=create(ctx);
   const ok=await start();
   assert.equal(ok,false);
-  assert.equal(ctx.statusEl.textContent,"MediaPipe ·Îµå ½ÇÆÐ");
+  assert.equal(ctx.statusEl.textContent,"MediaPipe ë¡œë“œ ì‹¤íŒ¨");
 });

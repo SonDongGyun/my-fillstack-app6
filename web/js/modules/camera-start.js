@@ -27,18 +27,18 @@
       if(IS_NATIVE_WEBVIEW){
         setRunning(true);
         setPermissionHelp(false);
-        statusEl.textContent="³×ÀÌÆ¼ºê Ä«¸Ş¶ó ¿¬µ¿ Áß";
-        startCameraBtn.textContent="³×ÀÌÆ¼ºê Ä«¸Ş¶ó ½ÇÇà Áß";
+        statusEl.textContent="ë„¤ì´í‹°ë¸Œ ì¹´ë©”ë¼ ì—°ë™ ì¤‘";
+        startCameraBtn.textContent="ë„¤ì´í‹°ë¸Œ ì¹´ë©”ë¼ ì‹¤í–‰ ì¤‘";
         startCameraBtn.disabled=true;
         return true;
       }
 
       if(typeof CameraCtor==="undefined"||typeof FaceMeshCtor==="undefined"){
-        statusEl.textContent="MediaPipe ·Îµå ½ÇÆĞ";
+        statusEl.textContent="MediaPipe ë¡œë“œ ì‹¤íŒ¨";
         return false;
       }
 
-      statusEl.textContent="Ä«¸Ş¶ó ½ÃÀÛ Áß...";
+      statusEl.textContent="ì¹´ë©”ë¼ ì‹œì‘ ì¤‘...";
       const camera=(typeof cameraOrchestrator.createCamera==="function")
         ? cameraOrchestrator.createCamera(videoEl,async()=>{await faceMesh.send({image:videoEl});},640,480)
         : new CameraCtor(videoEl,{onFrame:async()=>{await faceMesh.send({image:videoEl});},width:640,height:480});
@@ -47,17 +47,17 @@
         await camera.start();
         setRunning(true);
         setPermissionHelp(false);
-        statusEl.textContent="ÀÎ½Ä Áß";
-        startCameraBtn.textContent="Ä«¸Ş¶ó ½ÇÇà Áß";
+        statusEl.textContent="ì¸ì‹ ì¤‘";
+        startCameraBtn.textContent="ì¹´ë©”ë¼ ì‹¤í–‰ ì¤‘";
         startCameraBtn.disabled=true;
         return true;
       }catch(err){
         const msg=String(err?.message||"");
         if(err?.name==="NotAllowedError"||/not allowed|denied/i.test(msg)){
-          statusEl.textContent="Ä«¸Ş¶ó ±ÇÇÑÀÌ °ÅºÎµÇ¾ú½À´Ï´Ù.";
+          statusEl.textContent="ì¹´ë©”ë¼ ê¶Œí•œì´ ê±°ë¶€ë˜ì—ˆìŠµë‹ˆë‹¤.";
           setPermissionHelp(true,getPermissionGuide());
         }else{
-          statusEl.textContent="Ä«¸Ş¶ó¸¦ ½ÃÀÛÇÒ ¼ö ¾ø½À´Ï´Ù. ±ÇÇÑ/HTTPS ÁÖ¼Ò¸¦ È®ÀÎÇØ ÁÖ¼¼¿ä.";
+          statusEl.textContent="ì¹´ë©”ë¼ë¥¼ ì‹œì‘í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤. ê¶Œí•œ/HTTPS ì£¼ì†Œë¥¼ í™•ì¸í•´ ì£¼ì„¸ìš”.";
           setPermissionHelp(true,getPermissionGuide());
         }
         console.error(err);

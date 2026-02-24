@@ -28,7 +28,7 @@
       APP_STATE.gaze.emojiPupilX=0;
       APP_STATE.gaze.emojiPupilY=0;
       APP_STATE.gaze.lastAnnouncedTarget="";
-      APP_STATE.gaze.stableDirection="Á¤¸é";
+      APP_STATE.gaze.stableDirection="ì •ë©´";
       APP_STATE.gaze.lastClassifiedDir="CENTER";
       APP_STATE.gaze.lastScore=0;
 

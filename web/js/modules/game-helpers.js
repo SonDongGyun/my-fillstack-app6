@@ -18,7 +18,7 @@
     }
 
     function dirLabel(dir){
-      return typeof logic.dirLabel==="function"?logic.dirLabel(dir):"Á¤¸é";
+      return typeof logic.dirLabel==="function"?logic.dirLabel(dir):"ì •ë©´";
     }
 
     function isDirectionMatch(dir,gaze){

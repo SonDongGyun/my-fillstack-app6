@@ -23,10 +23,10 @@
 
     async function start(){
       if(!APP_STATE.camera.running){
-        blinkMeta.textContent="Ä«¸Ş¶ó ½ÃÀÛ Áß...";
+        blinkMeta.textContent="ì¹´ë©”ë¼ ì‹œì‘ ì¤‘...";
         const ok=await startCamera();
         if(!ok||!APP_STATE.camera.running){
-          blinkMeta.textContent="Ä«¸Ş¶ó ±ÇÇÑÀ» Çã¿ëÇÑ µÚ ´Ù½Ã ½ÃµµÇØ ÁÖ¼¼¿ä";
+          blinkMeta.textContent="ì¹´ë©”ë¼ ê¶Œí•œì„ í—ˆìš©í•œ ë’¤ ë‹¤ì‹œ ì‹œë„í•´ ì£¼ì„¸ìš”";
           return;
         }
       }
@@ -41,10 +41,10 @@
       APP_STATE.blink.exerciseCount=0;
       APP_STATE.blink.exerciseEndTs=Date.now()+20000;
 
-      if(blinkCountLine)blinkCountLine.textContent="ÇöÀç È½¼ö: 0È¸";
-      if(blinkTimeLine)blinkTimeLine.textContent="³²Àº ½Ã°£: 20ÃÊ";
+      if(blinkCountLine)blinkCountLine.textContent="í˜„ì¬ íšŸìˆ˜: 0íšŒ";
+      if(blinkTimeLine)blinkTimeLine.textContent="ë‚¨ì€ ì‹œê°„: 20ì´ˆ";
       updateBlinkCornerTime(20);
-      blinkMeta.textContent="ÁøÇà Áß";
+      blinkMeta.textContent="ì§„í–‰ ì¤‘";
 
       if(APP_STATE.blink.exerciseTimer)clearInterval(APP_STATE.blink.exerciseTimer);
       const blinkTick=()=>{
@@ -52,7 +52,7 @@
           ? blinkCore.remainSeconds(APP_STATE.blink.exerciseEndTs,Date.now())
           : Math.max(0,Math.ceil((APP_STATE.blink.exerciseEndTs-Date.now())/1000));
 
-        if(blinkTimeLine)blinkTimeLine.textContent=`³²Àº ½Ã°£: ${sec}ÃÊ`;
+        if(blinkTimeLine)blinkTimeLine.textContent=`ë‚¨ì€ ì‹œê°„: ${sec}ì´ˆ`;
         updateBlinkCornerTime(sec);
 
         if(sec<=0){

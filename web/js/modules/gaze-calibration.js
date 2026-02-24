@@ -27,7 +27,7 @@
       APP_STATE.gaze.calibrating=true;
       APP_STATE.gaze.calibrated=false;
       APP_STATE.gaze.calibrationMap=null;
-      gazeMeta.textContent=`∫∏¡§ Ω√¿€: ${calibrationLabel("CENTER")}¿ª 1.5√  πŸ∂Û∫¡ ¡÷ººø‰ (1/5)`;
+      gazeMeta.textContent=`Î≥¥Ï†ï ÏãúÏûë: ${calibrationLabel("CENTER")}ÏùÑ 1.5Ï¥à Î∞îÎùºÎ¥ê Ï£ºÏÑ∏Ïöî (1/5)`;
     }
 
     function pushSample(gaze){
@@ -54,7 +54,7 @@
       }
 
       const nextDir=CALIBRATION_POINTS[APP_STATE.gaze.calibrationStep];
-      gazeMeta.textContent=`∫∏¡§: ${calibrationLabel(nextDir)}¿ª 1.5√  πŸ∂Û∫¡ ¡÷ººø‰ (${APP_STATE.gaze.calibrationStep+1}/5)`;
+      gazeMeta.textContent=`Î≥¥Ï†ï: ${calibrationLabel(nextDir)}ÏùÑ 1.5Ï¥à Î∞îÎùºÎ¥ê Ï£ºÏÑ∏Ïöî (${APP_STATE.gaze.calibrationStep+1}/5)`;
       return false;
     }
 
@@ -64,7 +64,7 @@
       pushSample(gaze);
       APP_STATE.gaze.calibrationHoldMs+=dt;
       const sec=Math.max(0,(GAZE_CALIBRATION_STEP_MS-APP_STATE.gaze.calibrationHoldMs)/1000);
-      gazeMeta.textContent=`∫∏¡§: ${calibrationLabel(dir)} ${sec.toFixed(1)}√  (${APP_STATE.gaze.calibrationStep+1}/5)`;
+      gazeMeta.textContent=`Î≥¥Ï†ï: ${calibrationLabel(dir)} ${sec.toFixed(1)}Ï¥à (${APP_STATE.gaze.calibrationStep+1}/5)`;
       if(APP_STATE.gaze.calibrationHoldMs<GAZE_CALIBRATION_STEP_MS)return false;
       return finishStep(dir);
     }

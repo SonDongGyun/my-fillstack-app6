@@ -29,7 +29,7 @@ test("circle-session start requests camera when not running",async()=>{
   await session.start();
 
   assert.equal(APP_STATE.circle.active,false);
-  assert.match(circleMeta.textContent,/Ä«¸Þ¶ó ±ÇÇÑ/);
+  assert.match(circleMeta.textContent,/ì¹´ë©”ë¼ ê¶Œí•œ/);
   assert.equal(uiCalls.length,0);
 });
 
@@ -62,7 +62,7 @@ test("circle-session start initializes active tracking state",async()=>{
   assert.equal(APP_STATE.circle.followMs,0);
   assert.equal(APP_STATE.circle.endShown,false);
   assert.equal(uiCalls.length,1);
-  assert.match(circleMeta.textContent,/ÁøÇà Áß/);
+  assert.match(circleMeta.textContent,/ì§„í–‰ ì¤‘/);
 });
 
 test("circle-session update completes and reports score",()=>{
@@ -103,6 +103,6 @@ test("circle-session update completes and reports score",()=>{
 
   assert.equal(APP_STATE.circle.active,false);
   assert.equal(APP_STATE.circle.endShown,true);
-  assert.match(circleMeta.innerHTML,/¿Ï·á/);
+  assert.match(circleMeta.innerHTML,/ì™„ë£Œ/);
   assert.equal(panelAdds.length,1);
 });
