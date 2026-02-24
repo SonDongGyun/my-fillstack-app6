@@ -50,7 +50,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <button id="startBtn" class="primary-btn" type="button">카메라 시작</button>
         <button id="stopBtn" class="ghost-btn" type="button">중지</button>
       </div>
-      <div class="note">모델 경로: <code>/static/models/glasses.glb</code><br/>모델 로드 실패 시 기본 안경 프레임으로 자동 대체됩니다.</div>
+      <div class="note">현재는 기본 안경 프레임 모드입니다.<br/>3D 모델을 쓰려면 코드의 <code>GLB_MODEL_PATH</code>에 경로를 넣어주세요.</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -63,6 +63,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const startBtn=document.getElementById("startBtn");
   const stopBtn=document.getElementById("stopBtn");
   const status=document.getElementById("status");
+
+  const GLB_MODEL_PATH="";
 
   const LIB_SOURCES={
     three:[
@@ -229,13 +231,18 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   function loadGlasses(){
     return new Promise((resolve)=>{
+      if(!GLB_MODEL_PATH){
+        setStatus("기본 프레임 모드 (GLB 미설정)");
+        resolve();
+        return;
+      }
       if(!THREE.GLTFLoader){
         setStatus("GLB 로더 없음: 기본 프레임 사용");
         resolve();
         return;
       }
       const loader=new THREE.GLTFLoader();
-      loader.load("/static/models/glasses.glb",(gltf)=>{
+      loader.load(GLB_MODEL_PATH,(gltf)=>{
         glasses=gltf.scene;
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
@@ -284,7 +291,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       initRenderer();
       fallback=createFallbackGlasses();
       await loadGlasses();
-      setStatus("대기 중");
+      if(!GLB_MODEL_PATH)setStatus("대기 중 (기본 프레임)");
+      else setStatus("대기 중");
     }catch(err){
       console.error(err);
       setStatus("초기화 실패: 네트워크/스크립트 로드 확인 필요");
