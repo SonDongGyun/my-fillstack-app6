@@ -152,6 +152,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let selectedModelYaw=MODEL_OPTIONS[1].yaw||0;
   let modelLoadSeq=0;
   let modelRotQuat=null;
+  let isModelSwitching=false;
 
   const fitState={
     initialized:false,
@@ -268,9 +269,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   }
 
   function applyModel(pose){
-    const target=glasses||fallback;
+    let target=null;
+    if(glasses)target=glasses;
+    else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
-
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
       fitState.quaternion.copy(pose.quaternion);
@@ -313,6 +315,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   async function loadGlasses(path,yaw=0){
     const seq=++modelLoadSeq;
+    isModelSwitching=true;
     clearGlasses();
     if(fallback)fallback.visible=false;
     if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
@@ -320,10 +323,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(!path){
       if(modelRotQuat)modelRotQuat.identity();
       setStatus("기본 프레임 모드");
+      isModelSwitching=false;
       return;
     }
     if(!THREE.GLTFLoader){
       setStatus("GLB 로더 없음: 기본 프레임 사용");
+      isModelSwitching=false;
       return;
     }
 
@@ -344,9 +349,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(0,yaw,0));
         fitState.initialized=false;
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
+        isModelSwitching=false;
         resolve();
       },undefined,()=>{
         if(seq===modelLoadSeq)setStatus("선택 모델 로드 실패: 기본 프레임 사용");
+        if(seq===modelLoadSeq)isModelSwitching=false;
         resolve();
       });
     });
