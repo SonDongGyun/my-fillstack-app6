@@ -487,8 +487,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       const pitchAbs=Math.abs(e.x);
       const rollGain=(pitchAbs>THREE.MathUtils.degToRad(26))?0.06:(pitchAbs>THREE.MathUtils.degToRad(14)?0.14:0.26);
       const rollDelta=(e.z-analysisState.base.roll)*rollGain;
-      const rollClamp=THREE.MathUtils.degToRad(10);
-      e.z=analysisState.base.roll+THREE.MathUtils.clamp(rollDelta,-rollClamp,rollClamp);
+      const rollClamp=THREE.MathUtils.degToRad(8);
+      e.z=THREE.MathUtils.clamp(rollDelta,-rollClamp,rollClamp);
       correctedQuat=new THREE.Quaternion().setFromEuler(e);
 
       const baseSpan=Math.max(analysisState.base.earSpan||0,analysisState.base.faceWidth||0,1e-6);
@@ -755,4 +755,5 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
 
