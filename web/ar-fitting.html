@@ -68,6 +68,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
+      <div class="note" id="pdInfo">AI PD: 측정 전</div>
+      <div class="select-wrap" id="stylePanel">
+        <label class="select-label">스타일 시뮬레이션</label>
+        <div class="tune-grid">
+          <div class="tune-row"><span class="tune-name">Frame</span><input id="frameColorInput" type="color" value="#111111"/><span id="frameColorVal" class="tune-val">#111111</span></div>
+          <div class="tune-row"><span class="tune-name">Lens Tint</span><input id="lensTintRange" type="range" min="0" max="100" step="1"/><span id="lensTintVal" class="tune-val">32%</span></div>
+          <div class="tune-row"><span class="tune-name">Gloss</span><input id="glossRange" type="range" min="0" max="100" step="1"/><span id="glossVal" class="tune-val">58%</span></div>
+        </div>
+      </div>
       <div class="select-wrap" id="tunePanel">
         <label class="select-label">모델 미세 보정</label>
         <div class="tune-grid">
@@ -116,8 +125,16 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const offsetYVal=document.getElementById("offsetYVal");
   const offsetZVal=document.getElementById("offsetZVal");
   const scaleVal=document.getElementById("scaleVal");
+  const pdInfo=document.getElementById("pdInfo");
+  const frameColorInput=document.getElementById("frameColorInput");
+  const frameColorVal=document.getElementById("frameColorVal");
+  const lensTintRange=document.getElementById("lensTintRange");
+  const lensTintVal=document.getElementById("lensTintVal");
+  const glossRange=document.getElementById("glossRange");
+  const glossVal=document.getElementById("glossVal");
 
   const TUNE_STORAGE_KEY="arModelTuneV2";
+  const STYLE_STORAGE_KEY="arStyleV1";
 
   const MODEL_OPTIONS=[
     {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
@@ -149,6 +166,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   const modelTune={};
   MODEL_OPTIONS.forEach((m)=>{ if(m.path)modelTune[m.path]={}; });
+  const styleState={frameColor:"#111111",lensTint:32,gloss:58};
+  const pdState={samples:[],valueMm:0,ready:false};
 
   function deg(rad){ return rad*180/Math.PI; }
   function rad(degVal){ return degVal*Math.PI/180; }
@@ -171,6 +190,22 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   function saveTuneStorage(){
     try{ localStorage.setItem(TUNE_STORAGE_KEY,JSON.stringify(modelTune)); }catch(_){ }
+  }
+
+  function loadStyleStorage(){
+    try{
+      const raw=localStorage.getItem(STYLE_STORAGE_KEY);
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!parsed||typeof parsed!=="object")return;
+      if(typeof parsed.frameColor==="string")styleState.frameColor=parsed.frameColor;
+      if(Number.isFinite(parsed.lensTint))styleState.lensTint=Math.max(0,Math.min(100,parsed.lensTint));
+      if(Number.isFinite(parsed.gloss))styleState.gloss=Math.max(0,Math.min(100,parsed.gloss));
+    }catch(_){ }
+  }
+
+  function saveStyleStorage(){
+    try{ localStorage.setItem(STYLE_STORAGE_KEY,JSON.stringify(styleState)); }catch(_){ }
   }
 
   function getModelBase(path){
@@ -271,13 +306,118 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     })
     : null;
 
+  
+  function medianLocal(arr){
+    if(!arr||arr.length===0)return 0;
+    const sorted=[...arr].sort((a,b)=>a-b);
+    const mid=Math.floor(sorted.length*0.5);
+    return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])*0.5;
+  }
+
+  function estimatePdMm(points){
+    const pr=points[468],pl=points[473];
+    if(!pr||!pl)return null;
+    const pdNorm=Math.hypot(pl.x-pr.x,pl.y-pr.y);
+    const d=(a,b)=>Math.hypot((points[a]?.x||0)-(points[b]?.x||0),(points[a]?.y||0)-(points[b]?.y||0));
+    const irisRight=(d(469,471)+d(470,472))*0.5;
+    const irisLeft=(d(474,476)+d(475,477))*0.5;
+    const iris=(irisRight>0&&irisLeft>0)?(irisRight+irisLeft)*0.5:(irisRight||irisLeft);
+    if(!iris||iris<1e-5)return null;
+    const pdMm=(pdNorm/iris)*11.7;
+    return THREE.MathUtils.clamp(pdMm,50,78);
+  }
+
+  function pushPdSample(mm){
+    if(!Number.isFinite(mm))return;
+    pdState.samples.push(mm);
+    if(pdState.samples.length>45)pdState.samples.shift();
+    if(pdState.samples.length<8)return;
+    pdState.valueMm=medianLocal(pdState.samples);
+    pdState.ready=true;
+    pdInfo.textContent=`AI PD: ${pdState.valueMm.toFixed(1)} mm`;
+  }
+
+  function ensureMat(node){
+    if(!node.material)return [];
+    const mats=Array.isArray(node.material)?node.material:[node.material];
+    return mats.map((m)=>{
+      if(!m||typeof m.clone!=="function")return m;
+      if(m.userData&&m.userData.__arStyled)return m;
+      const cloned=m.clone();
+      cloned.userData={...(cloned.userData||{}),__arStyled:true};
+      return cloned;
+    });
+  }
+
+  function applyStyleToObject(obj){
+    if(!obj)return;
+    obj.traverse((node)=>{
+      if(!node.isMesh)return;
+      const mats=ensureMat(node);
+      if(Array.isArray(node.material))node.material=mats;
+      else node.material=mats[0];
+      mats.forEach((m)=>{
+        if(!m||!m.color)return;
+        const key=`${(node.name||"")} ${(m.name||"")}`.toLowerCase();
+        const isLens=/lens|glass|lense|렌즈/.test(key);
+        if(isLens){
+          m.transparent=true;
+          m.opacity=THREE.MathUtils.clamp(0.92-(styleState.lensTint/100)*0.72,0.20,0.95);
+          m.color.setRGB(0.62,0.68,0.74);
+          m.metalness=0.0;
+          m.roughness=THREE.MathUtils.clamp(0.22-(styleState.gloss/100)*0.15,0.03,0.25);
+          m.envMapIntensity=0.9+(styleState.gloss/100)*0.9;
+        }else{
+          m.color.set(styleState.frameColor);
+          m.metalness=0.25+(styleState.gloss/100)*0.55;
+          m.roughness=0.55-(styleState.gloss/100)*0.35;
+          m.envMapIntensity=0.6+(styleState.gloss/100)*0.8;
+        }
+        m.needsUpdate=true;
+      });
+    });
+  }
+
+  function applyStyleTargets(){
+    if(glasses)applyStyleToObject(glasses);
+    if(fallback)applyStyleToObject(fallback);
+  }
+
+  function syncStyleUI(){
+    frameColorInput.value=styleState.frameColor;
+    frameColorVal.textContent=styleState.frameColor.toUpperCase();
+    lensTintRange.value=String(styleState.lensTint);
+    lensTintVal.textContent=`${styleState.lensTint}%`;
+    glossRange.value=String(styleState.gloss);
+    glossVal.textContent=`${styleState.gloss}%`;
+  }
+
+  function setupStyleControls(){
+    const onStyle=()=>{
+      styleState.frameColor=frameColorInput.value;
+      styleState.lensTint=Number(lensTintRange.value);
+      styleState.gloss=Number(glossRange.value);
+      syncStyleUI();
+      applyStyleTargets();
+      saveStyleStorage();
+      setStatus("스타일 변경 적용됨");
+    };
+    frameColorInput.addEventListener("input",onStyle);
+    lensTintRange.addEventListener("input",onStyle);
+    glossRange.addEventListener("input",onStyle);
+  }
+
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    if("outputColorSpace" in renderer&&THREE.SRGBColorSpace)renderer.outputColorSpace=THREE.SRGBColorSpace;
+    if("toneMapping" in renderer)renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    if("toneMappingExposure" in renderer)renderer.toneMappingExposure=1.06;
     scene=new THREE.Scene();
     cam3d=new THREE.PerspectiveCamera(45,1,0.1,100);
     cam3d.position.set(0,0,3.2);
-    scene.add(new THREE.AmbientLight(0xffffff,1.2));
+    scene.add(new THREE.AmbientLight(0xffffff,1.1));
+    scene.add(new THREE.HemisphereLight(0xdde8ff,0x2f2f36,0.55));
     const keyLight=new THREE.DirectionalLight(0xffffff,1.0);
     keyLight.position.set(0,1.8,2.3);
     scene.add(keyLight);
@@ -315,6 +455,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     group.add(lensL,lensR,bridge,templeL,templeR);
     group.visible=false;
     scene.add(group);
+    applyStyleToObject(group);
     return group;
   }
 
@@ -542,6 +683,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     faceMesh.onResults((results)=>{
       const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
       if(pts){
+        const pd=estimatePdMm(pts);
+        if(pd!==null)pushPdSample(pd);
         const pose=getPose(pts);
         if(pose)applyModel(pose); else hideModel();
       }else hideModel();
@@ -580,6 +723,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
+        applyStyleToObject(glasses);
         if(fallback)fallback.visible=false;
         syncModelTransform(cfg);
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
@@ -721,12 +865,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function boot(){
     try{
       loadTuneStorage();
+      loadStyleStorage();
       await ensureDeps();
       initRenderer();
       fallback=createFallbackGlasses();
       setupModelSelect();
       setupTuneControls();
+      setupStyleControls();
       setupZoomControls();
+      syncStyleUI();
 
       selectedModelCfg=getEffectiveCfg(selectedModelPath);
       setTuneEnabled(!!selectedModelPath);
@@ -755,5 +902,4 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
-
 
