@@ -703,13 +703,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(!analysisState.ready){
       if(!analysisState.active)startFaceAnalysis();
       if(!isFrontalCandidate(pose)){
-        hideModel();
-        setStatus("얼굴 분석 중... 정면을 유지해 주세요");
-        return;
+        setStatus("얼굴 분석 중... 정면 권장");
       }
       pushFaceSample(pose);
-      hideModel();
-      return;
     }
 
     let correctedQuat=pose.quaternion;
