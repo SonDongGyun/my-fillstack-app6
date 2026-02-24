@@ -559,13 +559,17 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(rightVec.lengthSq()<1e-8||upHint.lengthSq()<1e-8)return null;
 
     const xAxis=rightVec.normalize();
-    const zAxis=new THREE.Vector3().crossVectors(xAxis,upHint).normalize();
+    let zAxis=new THREE.Vector3().crossVectors(xAxis,upHint).normalize();
     if(zAxis.lengthSq()<1e-8)return null;
 
     const forwardHint=toSceneVec({x:nose.x-bridge.x,y:nose.y-bridge.y,z:nose.z-bridge.z}).normalize();
     if(forwardHint.lengthSq()>1e-8&&zAxis.dot(forwardHint)<0)zAxis.multiplyScalar(-1);
 
-    const yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
+    let yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
+    if(yAxis.dot(upHint)<0){
+      yAxis.multiplyScalar(-1);
+      zAxis.multiplyScalar(-1);
+    }
     const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
     const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
     const euler=new THREE.Euler().setFromQuaternion(quat,"YXZ");
