@@ -87,6 +87,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   </section>
 </main>
 
+<script src="/static/js/modules/ar-pose-filter.js"></script>
 <script>
 (()=>{
   const video=document.getElementById("video");
@@ -256,6 +257,19 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     samples:null,
     base:null,
   };
+  const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
+    ? window.ArPoseFilter.create({
+      posDeadzone:0.0022,
+      rotDeadzoneDeg:0.8,
+      scaleDeadzone:0.010,
+      alphaMin:0.07,
+      alphaMax:0.28,
+      motionGain:0.20,
+      maxPosPerSec:1.55,
+      maxRotDegPerSec:90,
+      maxScalePerSec:0.85,
+    })
+    : null;
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -387,6 +401,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     modelOffsetZ=cfg.offsetZ||0;
     modelScaleMul=cfg.scale||1;
     fitState.initialized=false;
+    if(poseFilter)poseFilter.reset();
   }
 
   function median(arr){
@@ -409,6 +424,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     analysisState.base=null;
     resetFaceAnalysis();
     fitState.initialized=false;
+    if(poseFilter)poseFilter.reset();
     hideModel();
     setStatus("얼굴 분석 중... 정면을 1초 유지해 주세요");
   }
@@ -463,38 +479,33 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(analysisState.base){
       const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
       const pitchAbs=Math.abs(e.x);
-      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(18))?0.25:0.55;
+      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(16))?0.18:0.38;
       e.z=analysisState.base.roll+((e.z-analysisState.base.roll)*rollGain);
       correctedQuat=new THREE.Quaternion().setFromEuler(e);
 
       const baseSpan=Math.max(analysisState.base.earSpan||0,analysisState.base.faceWidth||0,1e-6);
       const nowSpan=Math.max(pose.earSpan2d||0,pose.faceWidth2d||0,1e-6);
-      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.90,1.10);
-      targetScale=pose.scale*(0.78+(widthRatio*0.22));
+      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.92,1.08);
+      targetScale=pose.scale*(0.84+(widthRatio*0.16));
     }
 
-    if(!fitState.initialized){
-      fitState.position.copy(pose.position);
-      fitState.quaternion.copy(correctedQuat);
-      fitState.scale=targetScale;
-      fitState.initialized=true;
-    }else{
-      const posDeltaSq=fitState.position.distanceToSquared(pose.position);
-      if(posDeltaSq>(FIT.positionDeadzone*FIT.positionDeadzone)){
-        fitState.position.lerp(pose.position,FIT.positionSmooth);
-      }
+    const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
+    const rawPose={
+      px:pose.position.x,
+      py:pose.position.y,
+      pz:pose.position.z,
+      qx:correctedQuat.x,
+      qy:correctedQuat.y,
+      qz:correctedQuat.z,
+      qw:correctedQuat.w,
+      scale:targetScale,
+    };
+    const filtered=poseFilter?poseFilter.update(rawPose,nowMs):rawPose;
 
-      const rotDelta=fitState.quaternion.angleTo(correctedQuat);
-      if(rotDelta>THREE.MathUtils.degToRad(FIT.rotationDeadzoneDeg)){
-        fitState.targetQuaternion.copy(correctedQuat);
-        fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
-      }
-
-      const scaleDelta=Math.abs(targetScale-fitState.scale);
-      if(scaleDelta>FIT.scaleDeadzone){
-        fitState.scale=THREE.MathUtils.lerp(fitState.scale,targetScale,FIT.scaleSmooth);
-      }
-    }
+    fitState.position.set(filtered.px,filtered.py,filtered.pz);
+    fitState.quaternion.set(filtered.qx,filtered.qy,filtered.qz,filtered.qw);
+    fitState.scale=filtered.scale;
+    fitState.initialized=true;
 
     target.visible=true;
     target.position.copy(fitState.position);
@@ -682,6 +693,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       }
       hideModel();
       fitState.initialized=false;
+      if(poseFilter)poseFilter.reset();
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
       startBtn.disabled=false;
       setStatus("중지됨");
