@@ -37,7 +37,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   <section class="head">
     <div>
       <h1 class="title">안경 AR 가상 피팅</h1>
-      <p class="sub">얼굴 회전(좌우/상하)까지 추종하도록 3D 정렬을 보강한 AR 피팅입니다.</p>
+      <p class="sub">얼굴 정렬/회전 보정 + 카메라 배율 조절을 지원합니다.</p>
     </div>
     <a class="ghost-btn" href="/?view=home">운동 시작하기</a>
   </section>
@@ -53,11 +53,16 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <button id="startBtn" class="primary-btn" type="button">카메라 시작</button>
         <button id="stopBtn" class="ghost-btn" type="button">중지</button>
       </div>
+      <div class="ctrl">
+        <button id="zoomOutBtn" class="ghost-btn" type="button">화면 축소</button>
+        <button id="zoomResetBtn" class="ghost-btn" type="button">배율 1x</button>
+        <button id="zoomInBtn" class="ghost-btn" type="button">화면 확대</button>
+      </div>
       <div class="select-wrap">
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
-      <div class="note">오늘 생성된 GLB 3개를 model A/B/C로 적용했습니다. 모델 전환 시 이전 모델이 남지 않도록 정리합니다.</div>
+      <div class="note">오늘 생성된 GLB 3개를 model A/B/C로 적용했습니다.</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -69,6 +74,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const canvas=document.getElementById("arCanvas");
   const startBtn=document.getElementById("startBtn");
   const stopBtn=document.getElementById("stopBtn");
+  const zoomOutBtn=document.getElementById("zoomOutBtn");
+  const zoomResetBtn=document.getElementById("zoomResetBtn");
+  const zoomInBtn=document.getElementById("zoomInBtn");
   const modelSelect=document.getElementById("modelSelect");
   const status=document.getElementById("status");
 
@@ -93,11 +101,18 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     scaleMul:4.4,
     minScale:0.28,
     maxScale:2.4,
-    yOffset:0.0,
-    zOffset:0.0,
+    yOffset:0,
+    zOffset:0,
+    rollGain:0.55,
   };
 
   function setStatus(txt){ status.textContent=txt; }
+
+  function applyViewZoom(){
+    const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`;
+    video.style.transform=t;
+    canvas.style.transform=t;
+  }
 
   function loadScript(src){
     return new Promise((resolve,reject)=>{
@@ -134,6 +149,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("얼굴 인식 모듈 로드 중...");
       await loadFromAny(LIB_SOURCES.facemesh);
     }
+
     if(typeof window.THREE.GLTFLoader==="undefined"){
       try{ await loadFromAny(LIB_SOURCES.gltf); }catch(_){ }
     }
@@ -155,6 +171,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let modelOffsetZ=0;
   let modelScaleMul=1;
   let isModelSwitching=false;
+  let viewZoom=1;
+
+  const rollState={
+    calibrating:true,
+    samples:0,
+    maxSamples:24,
+    sum:0,
+    bias:0,
+  };
 
   const fitState={
     initialized:false,
@@ -162,6 +187,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     quaternion:null,
     scale:1,
     targetQuaternion:null,
+    rollCorrectQuat:null,
   };
 
   function initRenderer(){
@@ -188,7 +214,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.position=new THREE.Vector3();
     fitState.quaternion=new THREE.Quaternion();
     fitState.targetQuaternion=new THREE.Quaternion();
+    fitState.rollCorrectQuat=new THREE.Quaternion();
     modelRotQuat=new THREE.Quaternion();
+
+    applyViewZoom();
   }
 
   function createFallbackGlasses(){
@@ -247,7 +276,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   function getPose(points){
     const left=points[234],right=points[454],nose=points[6],forehead=points[10],chin=points[152];
-    if(!left||!right||!nose||!forehead||!chin)return null;
+    const eyeL=points[33],eyeR=points[263];
+    if(!left||!right||!nose||!forehead||!chin||!eyeL||!eyeR)return null;
 
     const rightVec=toSceneVec({x:right.x-left.x,y:right.y-left.y,z:right.z-left.z});
     const upHint=toSceneVec({x:forehead.x-chin.x,y:forehead.y-chin.y,z:forehead.z-chin.z});
@@ -267,8 +297,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     const eyeDist2d=Math.hypot(right.x-left.x,right.y-left.y);
     const scale=THREE.MathUtils.clamp(eyeDist2d*FIT.scaleMul,FIT.minScale,FIT.maxScale);
+    const eyeRoll=Math.atan2(eyeR.y-eyeL.y,eyeR.x-eyeL.x);
 
-    return {position:pos,quaternion:quat,scale};
+    return {position:pos,quaternion:quat,scale,eyeRoll};
   }
 
   function applyModel(pose){
@@ -277,14 +308,27 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
+    if(rollState.calibrating){
+      rollState.sum+=pose.eyeRoll;
+      rollState.samples++;
+      if(rollState.samples>=rollState.maxSamples){
+        rollState.bias=rollState.sum/rollState.samples;
+        rollState.calibrating=false;
+      }
+    }
+
+    const correctedRoll=(pose.eyeRoll-rollState.bias)*FIT.rollGain;
+    fitState.rollCorrectQuat.setFromEuler(new THREE.Euler(0,0,-correctedRoll));
+    const correctedQuat=pose.quaternion.clone().premultiply(fitState.rollCorrectQuat);
+
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
-      fitState.quaternion.copy(pose.quaternion);
+      fitState.quaternion.copy(correctedQuat);
       fitState.scale=pose.scale;
       fitState.initialized=true;
     }else{
       fitState.position.lerp(pose.position,FIT.positionSmooth);
-      fitState.targetQuaternion.copy(pose.quaternion);
+      fitState.targetQuaternion.copy(correctedQuat);
       fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
       fitState.scale=THREE.MathUtils.lerp(fitState.scale,pose.scale,FIT.scaleSmooth);
     }
@@ -393,6 +437,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function start(){
     try{
       setStatus("카메라 시작 중...");
+      rollState.calibrating=true;
+      rollState.samples=0;
+      rollState.sum=0;
+      rollState.bias=0;
+      fitState.initialized=false;
+
       if(!pipelineReady)ensurePipeline();
       if(typeof Camera==="undefined")throw new Error("Camera unavailable");
       if(!mpCam){
@@ -424,12 +474,31 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }catch(_){ }
   }
 
+  function setupZoomControls(){
+    zoomInBtn.addEventListener("click",()=>{
+      viewZoom=Math.min(1.8,viewZoom+0.1);
+      applyViewZoom();
+      setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`);
+    });
+    zoomOutBtn.addEventListener("click",()=>{
+      viewZoom=Math.max(0.8,viewZoom-0.1);
+      applyViewZoom();
+      setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`);
+    });
+    zoomResetBtn.addEventListener("click",()=>{
+      viewZoom=1;
+      applyViewZoom();
+      setStatus("화면 배율: 1.0x");
+    });
+  }
+
   async function boot(){
     try{
       await ensureDeps();
       initRenderer();
       fallback=createFallbackGlasses();
       setupModelSelect();
+      setupZoomControls();
       await loadGlasses(selectedModelPath,selectedModelCfg);
       setStatus("대기 중");
     }catch(err){
