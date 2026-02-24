@@ -191,6 +191,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     base:null,
     count:0,
   };
+  const fitLockState={
+    ready:false,
+    frontalStreak:0,
+    roll:0,
+    scale:1,
+    px:0,
+    py:0,
+  };
 
   const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
     ? window.ArPoseFilter.create({
@@ -625,6 +633,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     analysisState.ready=false;
     analysisState.base=null;
     resetFaceAnalysis();
+    fitLockState.ready=false;
+    fitLockState.frontalStreak=0;
     if(poseFilter)poseFilter.reset();
     setStatus("얼굴 분석 중... 정면을 1초 유지해 주세요");
   }
@@ -658,6 +668,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       };
       analysisState.active=false;
       analysisState.ready=true;
+      fitLockState.ready=false;
+      fitLockState.frontalStreak=0;
       if(poseFilter)poseFilter.reset();
       setStatus("얼굴 분석 완료: 피팅 시작");
       return;
@@ -679,6 +691,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     modelOffsetY=cfg.offsetY||0;
     modelOffsetZ=cfg.offsetZ||0;
     modelScaleMul=cfg.scale||1;
+    fitLockState.ready=false;
+    fitLockState.frontalStreak=0;
     if(poseFilter)poseFilter.reset();
   }
 
@@ -688,42 +702,72 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
-    if(!analysisState.ready&& !analysisState.active)startFaceAnalysis();
+    if(!analysisState.ready&&!analysisState.active)startFaceAnalysis();
     if(analysisState.active)pushFaceSample(pose);
 
     const correctedQuat=pose.quaternion.clone();
     const e=new THREE.Euler().setFromQuaternion(correctedQuat,"YXZ");
     let targetScale=pose.scale;
     let depthDelta=0;
+    let targetPx=pose.position.x;
+    let targetPy=pose.position.y;
 
     if(analysisState.base){
       const pitchAbs=Math.abs(e.x);
       const yawAbs=Math.abs(e.y);
-      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(16))+(yawAbs/THREE.MathUtils.degToRad(22)))*0.5,0.05,1);
+      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(14))+(yawAbs/THREE.MathUtils.degToRad(18)))*0.5,0,1);
+      const isHardFrontal=frontalFactor>=0.78;
+      fitLockState.frontalStreak=isHardFrontal?(fitLockState.frontalStreak+1):Math.max(0,fitLockState.frontalStreak-1);
 
-      const rollGain=0.02+(frontalFactor*0.05);
-      const rollClamp=THREE.MathUtils.degToRad(3.2);
+      const baseRoll=analysisState.base.roll||0;
+      const rollGain=0.012+(frontalFactor*0.032);
+      const rollClamp=THREE.MathUtils.degToRad(2.2);
       const rollDelta=(analysisState.base.eyeRoll-pose.eyeRoll)*rollGain;
-      const dynamicRoll=THREE.MathUtils.clamp((analysisState.base.roll||0)+rollDelta,(analysisState.base.roll||0)-rollClamp,(analysisState.base.roll||0)+rollClamp);
-      const frontalLock=THREE.MathUtils.clamp((frontalFactor-0.6)/0.4,0,1);
-      e.z=THREE.MathUtils.lerp(dynamicRoll,analysisState.base.roll||0,frontalLock*0.9);
-      correctedQuat.setFromEuler(e);
+      const dynamicRoll=THREE.MathUtils.clamp(baseRoll+rollDelta,baseRoll-rollClamp,baseRoll+rollClamp);
+      const rollTarget=isHardFrontal?THREE.MathUtils.lerp(dynamicRoll,baseRoll,0.96):dynamicRoll;
 
-      const pdRatio=THREE.MathUtils.clamp((pose.pdNorm||1e-6)/Math.max(analysisState.base.pdNorm||1e-6,1e-6),0.86,1.18);
+      const pdRatio=THREE.MathUtils.clamp((pose.pdNorm||1e-6)/Math.max(analysisState.base.pdNorm||1e-6,1e-6),0.90,1.12);
       const widthNow=Math.max((pose.faceWidth2d*0.65)+(pose.earSpan2d*0.35),1e-6);
       const widthBase=Math.max((analysisState.base.faceWidth*0.65)+(analysisState.base.earSpan*0.35),1e-6);
-      const widthRatio=THREE.MathUtils.clamp(widthNow/widthBase,0.86,1.18);
-      const depthMix=(pdRatio*0.58)+(widthRatio*0.42);
-      targetScale=THREE.MathUtils.clamp((analysisState.base.scale||pose.scale)*THREE.MathUtils.lerp(1,depthMix,0.72),FIT.minScale,FIT.maxScale);
+      const widthRatio=THREE.MathUtils.clamp(widthNow/widthBase,0.90,1.12);
+      const dynamicScale=THREE.MathUtils.clamp((analysisState.base.scale||pose.scale)*THREE.MathUtils.lerp(1,(pdRatio*0.55)+(widthRatio*0.45),0.55),FIT.minScale,FIT.maxScale);
+      const baseScale=Math.max(analysisState.base.scale||dynamicScale,FIT.minScale);
+      const scaleTarget=isHardFrontal?THREE.MathUtils.lerp(dynamicScale,baseScale,0.94):dynamicScale;
+
+      const basePos=ndcToWorld(analysisState.base.anchorX,analysisState.base.anchorY);
+      const anchorBlend=isHardFrontal?0.88:0.30;
+      targetPx=THREE.MathUtils.lerp(pose.position.x,basePos.x,anchorBlend);
+      targetPy=THREE.MathUtils.lerp(pose.position.y,basePos.y,anchorBlend);
 
       const depthNow=(pose.noseBridgeDepth*0.65)+(pose.earDepth*0.35);
-      depthDelta=THREE.MathUtils.clamp((depthNow-(analysisState.base.depth||depthNow))*1.45,-0.055,0.055);
+      depthDelta=THREE.MathUtils.clamp((depthNow-(analysisState.base.depth||depthNow))*1.20,-0.04,0.04);
+
+      if(!fitLockState.ready){
+        fitLockState.ready=true;
+        fitLockState.roll=rollTarget;
+        fitLockState.scale=scaleTarget;
+        fitLockState.px=targetPx;
+        fitLockState.py=targetPy;
+      }
+
+      const hold=(fitLockState.frontalStreak>=5)?0.90:0.52;
+      const follow=(fitLockState.frontalStreak>=5)?0.10:0.34;
+      fitLockState.roll=THREE.MathUtils.lerp(fitLockState.roll,rollTarget,follow);
+      fitLockState.scale=THREE.MathUtils.lerp(fitLockState.scale,scaleTarget,follow);
+      fitLockState.px=THREE.MathUtils.lerp(fitLockState.px,targetPx,follow);
+      fitLockState.py=THREE.MathUtils.lerp(fitLockState.py,targetPy,follow);
+
+      e.z=THREE.MathUtils.lerp(rollTarget,fitLockState.roll,hold);
+      correctedQuat.setFromEuler(e);
+      targetScale=THREE.MathUtils.lerp(scaleTarget,fitLockState.scale,hold);
+      targetPx=THREE.MathUtils.lerp(targetPx,fitLockState.px,hold);
+      targetPy=THREE.MathUtils.lerp(targetPy,fitLockState.py,hold);
     }
 
     const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
     const rawPose={
-      px:pose.position.x,
-      py:pose.position.y,
+      px:targetPx,
+      py:targetPy,
       pz:pose.position.z+depthDelta,
       qx:correctedQuat.x,
       qy:correctedQuat.y,
@@ -745,7 +789,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(target===glasses&&modelRotQuat)target.quaternion.premultiply(modelRotQuat);
     target.scale.setScalar(target===glasses?filtered.scale*modelScaleMul:filtered.scale);
   }
-
   function ensurePipeline(){
     if(pipelineReady)return;
 
