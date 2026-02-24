@@ -153,10 +153,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   const fitState={
     initialized:false,
-    position:new THREE.Vector3(),
-    quaternion:new THREE.Quaternion(),
+    position:null,
+    quaternion:null,
     scale:1,
-    targetQuaternion:new THREE.Quaternion(),
+    targetQuaternion:null,
   };
 
   function initRenderer(){
@@ -179,6 +179,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     };
     window.addEventListener("resize",resize);
     resize();
+
+    fitState.position=new THREE.Vector3();
+    fitState.quaternion=new THREE.Quaternion();
+    fitState.targetQuaternion=new THREE.Quaternion();
   }
 
   function createFallbackGlasses(){
