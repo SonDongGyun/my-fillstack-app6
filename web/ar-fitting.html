@@ -37,7 +37,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   <section class="head">
     <div>
       <h1 class="title">안경 AR 가상 피팅</h1>
-      <p class="sub">얼굴 랜드마크를 기준으로 3D 안경을 실시간 오버레이합니다.</p>
+      <p class="sub">얼굴 회전(좌우/상하)까지 추종하도록 3D 정렬을 보강한 AR 피팅입니다.</p>
     </div>
     <a class="ghost-btn" href="/?view=home">운동 시작하기</a>
   </section>
@@ -57,7 +57,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
-      <div class="note">선택한 GLB 3종을 번갈아 피팅할 수 있습니다.</div>
+      <div class="note">오늘 생성된 GLB 3개를 model A/B/C로 적용했습니다. 모델 전환 시 이전 모델이 남지 않도록 정리합니다.</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -84,6 +84,17 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     gltf:["/static/vendor/GLTFLoader.js","https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"],
     camera:["/static/vendor/camera_utils.js","https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"],
     facemesh:["/static/vendor/face_mesh.js","https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"]
+  };
+
+  const FIT={
+    positionSmooth:0.35,
+    rotationSmooth:0.32,
+    scaleSmooth:0.35,
+    scaleMul:4.4,
+    minScale:0.28,
+    maxScale:2.4,
+    yOffset:0.0,
+    zOffset:0.0,
   };
 
   function setStatus(txt){ status.textContent=txt; }
@@ -123,6 +134,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("얼굴 인식 모듈 로드 중...");
       await loadFromAny(LIB_SOURCES.facemesh);
     }
+
     if(typeof window.THREE.GLTFLoader==="undefined"){
       try{ await loadFromAny(LIB_SOURCES.gltf); }catch(_){ }
     }
@@ -137,6 +149,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let glasses=null;
   let fallback=null;
   let selectedModelPath=MODEL_OPTIONS[1].path;
+  let modelLoadSeq=0;
+
+  const fitState={
+    initialized:false,
+    position:new THREE.Vector3(),
+    quaternion:new THREE.Quaternion(),
+    scale:1,
+    targetQuaternion:new THREE.Quaternion(),
+  };
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -178,35 +199,88 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     return group;
   }
 
+  function disposeObject3D(obj){
+    if(!obj)return;
+    obj.traverse((node)=>{
+      if(node.geometry&&typeof node.geometry.dispose==="function")node.geometry.dispose();
+      if(node.material){
+        const mats=Array.isArray(node.material)?node.material:[node.material];
+        mats.forEach((m)=>{
+          if(!m)return;
+          Object.keys(m).forEach((k)=>{
+            const v=m[k];
+            if(v&&typeof v.dispose==="function"&&v.isTexture)v.dispose();
+          });
+          if(typeof m.dispose==="function")m.dispose();
+        });
+      }
+    });
+  }
+
   function clearGlasses(){
     if(glasses){
       scene.remove(glasses);
+      disposeObject3D(glasses);
       glasses=null;
     }
   }
 
+  function ndcToWorld(nx,ny){
+    const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
+    const halfW=halfH*cam3d.aspect;
+    return new THREE.Vector3((nx-0.5)*2*halfW,-(ny-0.5)*2*halfH,0);
+  }
+
+  function toSceneVec(p){
+    return new THREE.Vector3(p.x,-p.y,-p.z);
+  }
+
   function getPose(points){
-    const left=points[33],right=points[263],nose=points[1];
-    if(!left||!right||!nose)return null;
-    const cx=(left.x+right.x)*0.5;
-    const cy=(left.y+right.y)*0.5;
-    const eyeDist=Math.hypot(right.x-left.x,right.y-left.y);
-    const roll=Math.atan2(right.y-left.y,right.x-left.x);
-    const yaw=(nose.x-cx)*2.2;
-    const pitch=(nose.y-cy)*2.0;
-    return {cx,cy,eyeDist,roll,yaw,pitch};
+    const left=points[234],right=points[454],nose=points[6],forehead=points[10],chin=points[152];
+    if(!left||!right||!nose||!forehead||!chin)return null;
+
+    const rightVec=toSceneVec({x:right.x-left.x,y:right.y-left.y,z:right.z-left.z});
+    const upHint=toSceneVec({x:forehead.x-chin.x,y:forehead.y-chin.y,z:forehead.z-chin.z});
+    if(rightVec.lengthSq()<1e-8||upHint.lengthSq()<1e-8)return null;
+
+    const xAxis=rightVec.normalize();
+    const zAxis=new THREE.Vector3().crossVectors(xAxis,upHint).normalize();
+    if(zAxis.lengthSq()<1e-8)return null;
+    const yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
+
+    const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
+    const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
+
+    const pos=ndcToWorld(nose.x,nose.y);
+    pos.y+=FIT.yOffset;
+    pos.z+=FIT.zOffset;
+
+    const eyeDist2d=Math.hypot(right.x-left.x,right.y-left.y);
+    const scale=THREE.MathUtils.clamp(eyeDist2d*FIT.scaleMul,FIT.minScale,FIT.maxScale);
+
+    return {position:pos,quaternion:quat,scale};
   }
 
   function applyModel(pose){
     const target=glasses||fallback;
     if(!target)return;
-    const x=(pose.cx-0.5)*1.9;
-    const y=-(pose.cy-0.5)*1.9+0.02;
-    const s=Math.max(0.35,Math.min(1.25,pose.eyeDist*5.0));
+
+    if(!fitState.initialized){
+      fitState.position.copy(pose.position);
+      fitState.quaternion.copy(pose.quaternion);
+      fitState.scale=pose.scale;
+      fitState.initialized=true;
+    }else{
+      fitState.position.lerp(pose.position,FIT.positionSmooth);
+      fitState.targetQuaternion.copy(pose.quaternion);
+      fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
+      fitState.scale=THREE.MathUtils.lerp(fitState.scale,pose.scale,FIT.scaleSmooth);
+    }
+
     target.visible=true;
-    target.position.set(x,y,0);
-    target.rotation.set(-pose.pitch*0.45,-pose.yaw*0.55,-pose.roll);
-    target.scale.setScalar(s);
+    target.position.copy(fitState.position);
+    target.quaternion.copy(fitState.quaternion);
+    target.scale.setScalar(fitState.scale);
   }
 
   function hideModel(){
@@ -222,7 +296,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
       if(pts){
         const pose=getPose(pts);
-        if(pose)applyModel(pose); else hideModel();
+        if(pose)applyModel(pose);
+        else hideModel();
       }else hideModel();
       renderer.render(scene,cam3d);
     });
@@ -230,7 +305,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   }
 
   async function loadGlasses(path){
+    const seq=++modelLoadSeq;
     clearGlasses();
+
     if(!path){
       setStatus("기본 프레임 모드");
       return;
@@ -243,14 +320,21 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     await new Promise((resolve)=>{
       const loader=new THREE.GLTFLoader();
       loader.load(path,(gltf)=>{
+        if(seq!==modelLoadSeq){
+          disposeObject3D(gltf.scene);
+          resolve();
+          return;
+        }
+        clearGlasses();
         glasses=gltf.scene;
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
+        fitState.initialized=false;
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         resolve();
       },undefined,()=>{
-        setStatus("선택 모델 로드 실패: 기본 프레임 사용");
+        if(seq===modelLoadSeq)setStatus("선택 모델 로드 실패: 기본 프레임 사용");
         resolve();
       });
     });
@@ -285,7 +369,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }catch(err){
       const msg=String(err?.message||"");
       if(/secure|https/i.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요");
-      else if(/denied|notallowed|permission/i.test(msg.toLowerCase()))setStatus("카메라 권한이 거부되었습니다. Safari 설정에서 허용해 주세요");
+      else if(/denied|notallowed|permission/i.test(msg.toLowerCase()))setStatus("카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요");
       else setStatus("카메라 시작 실패: 라이브러리/권한 확인 필요");
       console.error(err);
     }
@@ -298,6 +382,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         video.srcObject=null;
       }
       hideModel();
+      fitState.initialized=false;
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
       startBtn.disabled=false;
       setStatus("중지됨");
