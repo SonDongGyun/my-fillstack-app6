@@ -485,6 +485,59 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }
   }
 
+  function safeBoxSize(obj){
+    const box=new THREE.Box3().setFromObject(obj);
+    const size=new THREE.Vector3();
+    box.getSize(size);
+    return {box,size};
+  }
+
+  function normalizeLoadedGlasses(root){
+    if(!root)return root;
+
+    const yawCandidates=[0,Math.PI*0.5,-Math.PI*0.5,Math.PI];
+    let bestYaw=0;
+    let bestScore=-Infinity;
+
+    yawCandidates.forEach((yaw)=>{
+      root.rotation.set(0,yaw,0);
+      root.updateMatrixWorld(true);
+      const {size}=safeBoxSize(root);
+      if(size.x<=1e-6||size.y<=1e-6||size.z<=1e-6)return;
+      const width=Math.max(size.x,size.z);
+      const depth=Math.min(size.x,size.z);
+      const score=width-(depth*0.35);
+      if(score>bestScore){
+        bestScore=score;
+        bestYaw=yaw;
+      }
+    });
+
+    root.rotation.set(0,bestYaw,0);
+    root.updateMatrixWorld(true);
+
+    let {box,size}=safeBoxSize(root);
+    const width=Math.max(size.x,size.z);
+    if(width>1e-6){
+      const targetWidth=1.08;
+      const normScale=targetWidth/width;
+      root.scale.multiplyScalar(normScale);
+      root.updateMatrixWorld(true);
+      ({box,size}=safeBoxSize(root));
+    }
+
+    const center=new THREE.Vector3();
+    box.getCenter(center);
+    const bridgePivot=new THREE.Vector3(
+      center.x,
+      box.min.y+(size.y*0.53),
+      center.z
+    );
+    root.position.sub(bridgePivot);
+    root.updateMatrixWorld(true);
+    return root;
+  }
+
   function ndcToWorld(nx,ny){
     const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
     const halfW=halfH*cam3d.aspect;
@@ -741,6 +794,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         if(seq!==modelLoadSeq){ disposeObject3D(gltf.scene); resolve(); return; }
         clearGlasses();
         glasses=gltf.scene;
+        normalizeLoadedGlasses(glasses);
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
@@ -923,4 +977,5 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
 
