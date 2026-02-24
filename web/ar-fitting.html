@@ -121,7 +121,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   const MODEL_OPTIONS=[
     {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
-    {label:"모델 A",path:"/static/models/model_a.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82},
+    {label:"모델 A",path:"/static/models/model_a.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.05,offsetZ:0.018,scale:0.78},
     {label:"모델 B",path:"/static/models/model_b.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82},
     {label:"모델 C",path:"/static/models/model_c.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82}
   ];
@@ -259,15 +259,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   };
   const poseFilter=(typeof window!=="undefined"&&window.ArPoseFilter&&window.ArPoseFilter.create)
     ? window.ArPoseFilter.create({
-      posDeadzone:0.0022,
-      rotDeadzoneDeg:0.8,
+      posDeadzone:0.0028,
+      rotDeadzoneDeg:1.1,
       scaleDeadzone:0.010,
-      alphaMin:0.07,
-      alphaMax:0.28,
+      alphaMin:0.06,
+      alphaMax:0.22,
       motionGain:0.20,
-      maxPosPerSec:1.55,
-      maxRotDegPerSec:90,
-      maxScalePerSec:0.85,
+      maxPosPerSec:1.20,
+      maxRotDegPerSec:70,
+      maxScalePerSec:0.65,
     })
     : null;
 
@@ -375,11 +375,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     const eyeCenterX=(eyeL.x+eyeR.x)*0.5;
     const eyeCenterY=(eyeL.y+eyeR.y)*0.5;
-    let anchorX=bridge.x*0.55+eyeCenterX*0.35+nose.x*0.10;
-    let anchorY=bridge.y*0.55+eyeCenterY*0.35+nose.y*0.10;
+    let anchorX=bridge.x*0.70+eyeCenterX*0.22+nose.x*0.08;
+    let anchorY=bridge.y*0.70+eyeCenterY*0.22+nose.y*0.08;
     if(analysisState.ready&&analysisState.base){
-      anchorX=anchorX*0.78+analysisState.base.anchorX*0.22;
-      anchorY=anchorY*0.78+analysisState.base.anchorY*0.22;
+      anchorX=anchorX*0.65+analysisState.base.anchorX*0.35;
+      anchorY=anchorY*0.65+analysisState.base.anchorY*0.35;
     }
 
     const pos=ndcToWorld(anchorX,anchorY);
@@ -389,10 +389,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const eyeDist2d=Math.hypot(eyeR.x-eyeL.x,eyeR.y-eyeL.y);
     const faceWidth2d=Math.hypot(right.x-left.x,right.y-left.y);
     const earSpan2d=(earL&&earR)?Math.hypot(earR.x-earL.x,earR.y-earL.y):faceWidth2d;
+    const noseBridgeDepth=Math.abs((nose.z||0)-(bridge.z||0));
+    const earDepth=(earL&&earR)?Math.abs((earR.z||0)-(earL.z||0)):noseBridgeDepth;
     const scaleSeed=eyeDist2d*0.62+faceWidth2d*0.23+earSpan2d*0.15;
     const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
 
-    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,faceWidth2d,earSpan2d,pitch:euler.x,roll:euler.z};
+    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,faceWidth2d,earSpan2d,noseBridgeDepth,earDepth,pitch:euler.x,roll:euler.z};
   }
 
   function syncModelTransform(cfg){
@@ -414,7 +416,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function resetFaceAnalysis(){
     analysisState.count=0;
     analysisState.samples={
-      anchorX:[],anchorY:[],eyeDist:[],faceWidth:[],earSpan:[],roll:[],pitch:[]
+      anchorX:[],anchorY:[],eyeDist:[],faceWidth:[],earSpan:[],noseBridgeDepth:[],earDepth:[],roll:[],pitch:[]
     };
   }
 
@@ -436,6 +438,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     analysisState.samples.eyeDist.push(pose.eyeDist2d);
     analysisState.samples.faceWidth.push(pose.faceWidth2d);
     analysisState.samples.earSpan.push(pose.earSpan2d);
+    analysisState.samples.noseBridgeDepth.push(pose.noseBridgeDepth);
+    analysisState.samples.earDepth.push(pose.earDepth);
     analysisState.samples.roll.push(pose.roll);
     analysisState.samples.pitch.push(pose.pitch);
     analysisState.count++;
@@ -447,6 +451,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         eyeDist:median(analysisState.samples.eyeDist),
         faceWidth:median(analysisState.samples.faceWidth),
         earSpan:median(analysisState.samples.earSpan),
+        noseBridgeDepth:median(analysisState.samples.noseBridgeDepth),
+        earDepth:median(analysisState.samples.earDepth),
         roll:median(analysisState.samples.roll),
         pitch:median(analysisState.samples.pitch),
       };
@@ -479,21 +485,27 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(analysisState.base){
       const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
       const pitchAbs=Math.abs(e.x);
-      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(16))?0.18:0.38;
-      e.z=analysisState.base.roll+((e.z-analysisState.base.roll)*rollGain);
+      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(26))?0.06:(pitchAbs>THREE.MathUtils.degToRad(14)?0.14:0.26);
+      const rollDelta=(e.z-analysisState.base.roll)*rollGain;
+      const rollClamp=THREE.MathUtils.degToRad(10);
+      e.z=analysisState.base.roll+THREE.MathUtils.clamp(rollDelta,-rollClamp,rollClamp);
       correctedQuat=new THREE.Quaternion().setFromEuler(e);
 
       const baseSpan=Math.max(analysisState.base.earSpan||0,analysisState.base.faceWidth||0,1e-6);
       const nowSpan=Math.max(pose.earSpan2d||0,pose.faceWidth2d||0,1e-6);
-      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.92,1.08);
-      targetScale=pose.scale*(0.84+(widthRatio*0.16));
+      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.94,1.06);
+      targetScale=pose.scale*(0.88+(widthRatio*0.12));
     }
 
     const nowMs=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
+    const baseDepth=(analysisState.base.noseBridgeDepth*0.65)+(analysisState.base.earDepth*0.35);
+    const nowDepth=((pose.noseBridgeDepth||0)*0.65)+((pose.earDepth||0)*0.35);
+    const depthDelta=THREE.MathUtils.clamp((nowDepth-baseDepth)*1.6,-0.06,0.06);
+
     const rawPose={
       px:pose.position.x,
       py:pose.position.y,
-      pz:pose.position.z,
+      pz:pose.position.z+depthDelta,
       qx:correctedQuat.x,
       qy:correctedQuat.y,
       qz:correctedQuat.z,
