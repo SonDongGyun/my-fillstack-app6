@@ -73,10 +73,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const status=document.getElementById("status");
 
   const MODEL_OPTIONS=[
-    {label:"기본 프레임 (모델 없음)",path:"",yaw:0},
-    {label:"모델 A",path:"/static/models/model_a.glb",yaw:Math.PI/2},
-    {label:"모델 B",path:"/static/models/model_b.glb",yaw:Math.PI/2},
-    {label:"모델 C",path:"/static/models/model_c.glb",yaw:Math.PI/2}
+    {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
+    {label:"모델 A",path:"/static/models/model_a.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82},
+    {label:"모델 B",path:"/static/models/model_b.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82},
+    {label:"모델 C",path:"/static/models/model_c.glb",yaw:-Math.PI/2,pitch:0,roll:0,offsetY:-0.06,offsetZ:0.03,scale:0.82}
   ];
 
   const LIB_SOURCES={
@@ -134,7 +134,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("얼굴 인식 모듈 로드 중...");
       await loadFromAny(LIB_SOURCES.facemesh);
     }
-
     if(typeof window.THREE.GLTFLoader==="undefined"){
       try{ await loadFromAny(LIB_SOURCES.gltf); }catch(_){ }
     }
@@ -148,10 +147,13 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let pipelineReady=false;
   let glasses=null;
   let fallback=null;
-  let selectedModelPath=MODEL_OPTIONS[1].path;
-  let selectedModelYaw=MODEL_OPTIONS[1].yaw||0;
+  let selectedModelCfg=MODEL_OPTIONS[1];
+  let selectedModelPath=selectedModelCfg.path;
   let modelLoadSeq=0;
   let modelRotQuat=null;
+  let modelOffsetY=0;
+  let modelOffsetZ=0;
+  let modelScaleMul=1;
   let isModelSwitching=false;
 
   const fitState={
@@ -186,6 +188,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.position=new THREE.Vector3();
     fitState.quaternion=new THREE.Quaternion();
     fitState.targetQuaternion=new THREE.Quaternion();
+    modelRotQuat=new THREE.Quaternion();
   }
 
   function createFallbackGlasses(){
@@ -273,6 +276,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(glasses)target=glasses;
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
+
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
       fitState.quaternion.copy(pose.quaternion);
@@ -287,9 +291,13 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     target.visible=true;
     target.position.copy(fitState.position);
+    if(target===glasses){
+      target.position.y+=modelOffsetY;
+      target.position.z+=modelOffsetZ;
+    }
     target.quaternion.copy(fitState.quaternion);
-    if(target===glasses&&modelRotQuat)target.quaternion.multiply(modelRotQuat);
-    target.scale.setScalar(fitState.scale);
+    if(target===glasses&&modelRotQuat)target.quaternion.premultiply(modelRotQuat);
+    target.scale.setScalar(target===glasses?fitState.scale*modelScaleMul:fitState.scale);
   }
 
   function hideModel(){
@@ -305,15 +313,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
       if(pts){
         const pose=getPose(pts);
-        if(pose)applyModel(pose);
-        else hideModel();
+        if(pose)applyModel(pose); else hideModel();
       }else hideModel();
       renderer.render(scene,cam3d);
     });
     pipelineReady=true;
   }
 
-  async function loadGlasses(path,yaw=0){
+  async function loadGlasses(path,cfg=selectedModelCfg){
     const seq=++modelLoadSeq;
     isModelSwitching=true;
     clearGlasses();
@@ -322,10 +329,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     if(!path){
       if(modelRotQuat)modelRotQuat.identity();
+      modelOffsetY=0;
+      modelOffsetZ=0;
+      modelScaleMul=1;
       setStatus("기본 프레임 모드");
       isModelSwitching=false;
       return;
     }
+
     if(!THREE.GLTFLoader){
       setStatus("GLB 로더 없음: 기본 프레임 사용");
       isModelSwitching=false;
@@ -346,7 +357,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
         if(fallback)fallback.visible=false;
-        if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(0,yaw,0));
+        if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
+        modelOffsetY=cfg.offsetY||0;
+        modelOffsetZ=cfg.offsetZ||0;
+        modelScaleMul=cfg.scale||1;
         fitState.initialized=false;
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         isModelSwitching=false;
@@ -371,8 +385,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     modelSelect.addEventListener("change",async()=>{
       selectedModelPath=modelSelect.value;
       const current=MODEL_OPTIONS.find((m)=>m.path===selectedModelPath);
-      selectedModelYaw=current?current.yaw||0:0;
-      await loadGlasses(selectedModelPath,selectedModelYaw);
+      selectedModelCfg=current||MODEL_OPTIONS[0];
+      await loadGlasses(selectedModelPath,selectedModelCfg);
     });
   }
 
@@ -416,7 +430,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       initRenderer();
       fallback=createFallbackGlasses();
       setupModelSelect();
-      await loadGlasses(selectedModelPath,selectedModelYaw);
+      await loadGlasses(selectedModelPath,selectedModelCfg);
       setStatus("대기 중");
     }catch(err){
       console.error(err);
