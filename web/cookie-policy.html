@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
@@ -6,27 +6,33 @@
 <title>쿠키 정책 | 눈건강 시력지킴이</title>
 <meta name="description" content="눈건강 시력지킴이 쿠키 정책 안내 페이지" />
 <style>
-:root{--b900:#0b3d91;--b700:#1459c2;--line:#cfe3ff;--ink:#112a4a;--muted:#45658d}
+:root{--b900:#0b3d91;--b700:#1459c2;--b500:#2e7be8;--b100:#eef6ff;--line:#cfe3ff;--ink:#112a4a;--muted:#45658d}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:radial-gradient(1100px 640px at 10% -10%,#fff 0%,#f3f9ff 45%,#e8f2ff 100%),linear-gradient(180deg,#f8fcff 0%,#eaf4ff 100%);padding:24px}
+body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:radial-gradient(1100px 640px at 10% -10%,#fff 0%,#f3f9ff 45%,#e8f2ff 100%),linear-gradient(180deg,#f8fcff 0%,#eaf4ff 100%);padding:24px;overflow-x:hidden}
 .wrap{width:min(920px,100%);margin:0 auto;border:1px solid var(--line);border-radius:22px;background:#ffffffdb;box-shadow:0 20px 48px #79acee24;padding:24px}
-.head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .title{margin:0;color:var(--b900);font-size:1.45rem}
-.back{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #c7deff;border-radius:10px;padding:9px 12px;background:#eff6ff;color:#1454a8;font-weight:700}
 .lead{margin:0 0 18px;color:var(--muted);line-height:1.65}
 .card{border:1px solid #dbeaff;border-radius:14px;background:#f7fbff;padding:15px 14px;margin-top:12px}
 .card h2{margin:0 0 8px;color:#174f9e;font-size:1.02rem}
 .card p,.card li{margin:0;color:#2f527f;line-height:1.7;font-size:.94rem}
 .card ul{margin:0;padding-left:18px;display:grid;gap:6px}
 .foot{margin-top:16px;padding-top:12px;border-top:1px solid #d7e8ff;color:#5b769a;font-size:.84rem}
-@media (max-width:600px){body{padding:10px}.wrap{padding:14px;border-radius:16px}.title{font-size:1.2rem}}
+.ghost-btn{border:1px solid #d2e5ff;color:#1d5eb4;background:#f9fcff;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer;transition:transform .14s ease,filter .14s ease;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.ghost-btn:hover{transform:translateY(-1px);filter:brightness(1.01)}
+.scroll-cta{will-change:transform,box-shadow;transition:transform .35s cubic-bezier(.22,.61,.36,1),box-shadow .25s ease,border-color .25s ease,background .25s ease;transform-origin:center center;white-space:nowrap}
+.scroll-cta.is-docked{position:fixed !important;top:12px;z-index:1300;background:rgba(255,255,255,.9) !important;border-color:#d6e6fb !important;color:#1f539b !important;box-shadow:0 10px 20px rgba(23,79,158,.14) !important}
+.cta-placeholder{display:none}
+.cta-placeholder.active{display:block}
+@media (max-width:600px){body{padding:10px}.wrap{padding:14px;border-radius:16px}.title{font-size:1.2rem}.ghost-btn{width:100%}}
 </style>
 </head>
 <body>
 <main class="wrap">
   <section class="head">
     <h1 class="title">쿠키 정책</h1>
-    <a class="back" href="/">메인으로 돌아가기</a>
+    <a id="goHomeBtn" class="ghost-btn scroll-cta" href="/?view=home">운동 시작하기 페이지로 가기</a>
+    <div id="goHomePlaceholder" class="cta-placeholder"></div>
   </section>
   <p class="lead">눈건강 시력지킴이는 서비스 이용 편의와 안정적인 기능 제공을 위해 쿠키를 사용합니다. 본 페이지는 쿠키 사용 목적과 선택 방법을 안내합니다.</p>
 
@@ -66,7 +72,82 @@ body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF 
     <p>법령 및 서비스 변경 사항에 따라 본 쿠키 정책은 업데이트될 수 있습니다. 중요한 변경이 있는 경우 본 페이지를 통해 안내합니다.</p>
   </section>
 
-  <div class="foot">최종 업데이트: 2026-02-23</div>
+  <div class="foot">최종 업데이트: 2026-02-24</div>
 </main>
+
+<script>
+(()=>{
+  const btn=document.getElementById("goHomeBtn");
+  const holder=document.getElementById("goHomePlaceholder");
+  if(!btn||!holder)return;
+  let triggerY=null;
+  let docked=false;
+
+  function ensureTrigger(){
+    if(docked)return;
+    const rect=btn.getBoundingClientRect();
+    if(rect.height<=0)return;
+    triggerY=Math.max(0,Math.round(window.scrollY+rect.top-12));
+  }
+
+  function dock(){
+    if(docked)return;
+    const start=btn.getBoundingClientRect();
+    const width=Math.min(Math.max(btn.offsetWidth,start.width),Math.max(160,window.innerWidth-20));
+    const height=Math.max(btn.offsetHeight,start.height);
+    const targetTop=12;
+    const targetLeft=Math.round((window.innerWidth-width)/2);
+
+    holder.style.height=`${height}px`;
+    holder.classList.add("active");
+    if(btn.parentElement!==document.body)document.body.appendChild(btn);
+
+    btn.classList.add("is-docked");
+    btn.style.width=`${width}px`;
+    btn.style.left=`${targetLeft}px`;
+    btn.style.top=`${targetTop}px`;
+    btn.style.position="fixed";
+
+    const end=btn.getBoundingClientRect();
+    const dx=(start.left-end.left).toFixed(1);
+    const dy=(start.top-end.top).toFixed(1);
+    btn.style.transition="none";
+    btn.style.transform=`translate(${dx}px, ${dy}px)`;
+    requestAnimationFrame(()=>{
+      btn.style.transition="transform .65s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease";
+      btn.style.transform="translate(0px, 0px)";
+    });
+    docked=true;
+  }
+
+  function undock(){
+    if(!docked)return;
+    btn.classList.remove("is-docked");
+    btn.style.width="";
+    btn.style.left="";
+    btn.style.top="";
+    btn.style.position="";
+    btn.style.transform="";
+    btn.style.transition="";
+    const head=document.querySelector(".head");
+    if(head)head.insertBefore(btn,holder);
+    holder.classList.remove("active");
+    holder.style.height="";
+    docked=false;
+    triggerY=null;
+  }
+
+  function update(){
+    ensureTrigger();
+    if(triggerY===null)return;
+    if(window.scrollY>triggerY)dock();
+    else undock();
+  }
+
+  window.addEventListener("scroll",update,{passive:true});
+  window.addEventListener("resize",()=>{ if(docked)undock(); update(); });
+  update();
+})();
+</script>
 </body>
 </html>
