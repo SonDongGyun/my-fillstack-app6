@@ -77,7 +77,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
           <div class="tune-row"><span class="tune-name">Offset Y</span><input id="offsetYRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetYVal" class="tune-val">0</span></div>
           <div class="tune-row"><span class="tune-name">Offset Z</span><input id="offsetZRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetZVal" class="tune-val">0</span></div>
           <div class="tune-row"><span class="tune-name">Scale</span><input id="scaleRange" type="range" min="0.40" max="2.20" step="0.01"/><span id="scaleVal" class="tune-val">1</span></div>
-          <div class="tune-row"><span class="tune-name">RollGain</span><input id="rollGainRange" type="range" min="0" max="1.20" step="0.01"/><span id="rollGainVal" class="tune-val">0.25</span></div>
+          
         </div>
         <div class="ctrl" style="margin-top:8px"><button id="tuneResetBtn" class="ghost-btn" type="button">현재 모델 보정 초기화</button></div>
       </div>
@@ -108,7 +108,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const offsetYRange=document.getElementById("offsetYRange");
   const offsetZRange=document.getElementById("offsetZRange");
   const scaleRange=document.getElementById("scaleRange");
-  const rollGainRange=document.getElementById("rollGainRange");
 
   const yawVal=document.getElementById("yawVal");
   const pitchVal=document.getElementById("pitchVal");
@@ -116,7 +115,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const offsetYVal=document.getElementById("offsetYVal");
   const offsetZVal=document.getElementById("offsetZVal");
   const scaleVal=document.getElementById("scaleVal");
-  const rollGainVal=document.getElementById("rollGainVal");
 
   const TUNE_STORAGE_KEY="arModelTuneV2";
 
@@ -135,15 +133,17 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   };
 
   const FIT={
-    positionSmooth:0.35,
-    rotationSmooth:0.32,
-    scaleSmooth:0.35,
+    positionSmooth:0.20,
+    rotationSmooth:0.16,
+    scaleSmooth:0.20,
+    positionDeadzone:0.003,
+    rotationDeadzoneDeg:1.2,
+    scaleDeadzone:0.015,
     scaleMul:4.4,
     minScale:0.28,
     maxScale:2.4,
     yOffset:0,
     zOffset:0,
-    rollGain:0.25,
   };
 
   const modelTune={};
@@ -247,9 +247,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let isModelSwitching=false;
   let viewZoom=1;
 
-  const rollState={calibrating:true,samples:0,maxSamples:24,sum:0,bias:0,lastEyeRoll:0};
-
-  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null,rollCorrectQuat:null};
+  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null};
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -379,35 +377,13 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.initialized=false;
   }
 
-  function beginRollCalibration(sampleCount=24){
-    rollState.calibrating=true;
-    rollState.samples=0;
-    rollState.maxSamples=Math.max(8,Number(sampleCount)||24);
-    rollState.sum=0;
-  }
-
   function applyModel(pose){
     let target=null;
     if(glasses)target=glasses;
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
-    rollState.lastEyeRoll=pose.eyeRoll;
-    if(rollState.calibrating){
-      rollState.sum+=pose.eyeRoll;
-      rollState.samples++;
-      if(rollState.samples>=rollState.maxSamples){
-        rollState.bias=rollState.sum/rollState.samples;
-        rollState.calibrating=false;
-      }
-    }
-
-    const correctedRoll=(pose.eyeRoll-rollState.bias)*FIT.rollGain;
-    const correctedQuat=pose.quaternion.clone();
-    if(Math.abs(correctedRoll)>1e-6){
-      fitState.rollCorrectQuat.setFromAxisAngle(new THREE.Vector3(0,0,1),-correctedRoll);
-      correctedQuat.premultiply(fitState.rollCorrectQuat);
-    }
+    const correctedQuat=pose.quaternion;
 
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
@@ -415,10 +391,21 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       fitState.scale=pose.scale;
       fitState.initialized=true;
     }else{
-      fitState.position.lerp(pose.position,FIT.positionSmooth);
-      fitState.targetQuaternion.copy(correctedQuat);
-      fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
-      fitState.scale=THREE.MathUtils.lerp(fitState.scale,pose.scale,FIT.scaleSmooth);
+      const posDeltaSq=fitState.position.distanceToSquared(pose.position);
+      if(posDeltaSq>(FIT.positionDeadzone*FIT.positionDeadzone)){
+        fitState.position.lerp(pose.position,FIT.positionSmooth);
+      }
+
+      const rotDelta=fitState.quaternion.angleTo(correctedQuat);
+      if(rotDelta>THREE.MathUtils.degToRad(FIT.rotationDeadzoneDeg)){
+        fitState.targetQuaternion.copy(correctedQuat);
+        fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
+      }
+
+      const scaleDelta=Math.abs(pose.scale-fitState.scale);
+      if(scaleDelta>FIT.scaleDeadzone){
+        fitState.scale=THREE.MathUtils.lerp(fitState.scale,pose.scale,FIT.scaleSmooth);
+      }
     }
 
     target.visible=true;
@@ -507,7 +494,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     offsetYRange.value=String(cfg.offsetY||0);
     offsetZRange.value=String(cfg.offsetZ||0);
     scaleRange.value=String(cfg.scale||1);
-    rollGainRange.value=String(FIT.rollGain);
 
     yawVal.textContent=String(Math.round(deg(cfg.yaw||0)));
     pitchVal.textContent=String(Math.round(deg(cfg.pitch||0)));
@@ -515,13 +501,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     offsetYVal.textContent=f3(cfg.offsetY||0);
     offsetZVal.textContent=f3(cfg.offsetZ||0);
     scaleVal.textContent=f2(cfg.scale||1);
-    rollGainVal.textContent=f2(FIT.rollGain);
   }
 
   function setupTuneControls(){
     const onChange=()=>{
-      FIT.rollGain=Number(rollGainRange.value);
-      rollGainVal.textContent=f2(FIT.rollGain);
       if(!selectedModelPath)return;
 
       const tune={
@@ -546,7 +529,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("미세 보정값 적용됨");
     };
 
-    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange,rollGainRange].forEach((el)=>{
+    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange].forEach((el)=>{
       el.addEventListener("input",onChange);
       el.addEventListener("change",onChange);
     });
@@ -583,8 +566,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function start(){
     try{
       setStatus("카메라 시작 중...");
-      rollState.bias=0;
-      beginRollCalibration(24);
       fitState.initialized=false;
 
       if(!pipelineReady)ensurePipeline();
@@ -649,9 +630,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   startBtn.addEventListener("click",start);
   stopBtn.addEventListener("click",stop);
   recalibrateBtn.addEventListener("click",()=>{
-    beginRollCalibration(18);
     fitState.initialized=false;
-    setStatus("정면 재보정 중... 화면을 정면으로 1초 유지해 주세요");
+    setStatus("정면 기준 재설정: 얼굴을 화면 중앙에 맞춰주세요");
   });
   window.addEventListener("error",(evt)=>{
     const msg=String(evt?.message||"");
@@ -663,5 +643,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
+
 
 
