@@ -317,8 +317,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       ctx.fillText(t3,22,112);
       ctx.fillText(t4,22,132);
     }
-  }
 
+    if(pose&&frontalState.locked){
+      drawFrontalGlasses(ctx,w,h,pose);
+    }
+  }
   function updateFrontalState(pose){
     if(!pose){
       frontalState.streak=0;
@@ -433,6 +436,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
 
 
 
