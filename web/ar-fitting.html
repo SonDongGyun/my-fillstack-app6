@@ -248,6 +248,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let viewZoom=1;
 
   const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null};
+  const analysisState={
+    active:false,
+    ready:false,
+    needed:36,
+    count:0,
+    samples:null,
+    base:null,
+  };
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -273,7 +281,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.position=new THREE.Vector3();
     fitState.quaternion=new THREE.Quaternion();
     fitState.targetQuaternion=new THREE.Quaternion();
-    fitState.rollCorrectQuat=new THREE.Quaternion();
     modelRotQuat=new THREE.Quaternion();
 
     applyViewZoom();
@@ -333,7 +340,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   function getPose(points){
     const left=points[234],right=points[454],nose=points[6],bridge=points[168],forehead=points[10],chin=points[152];
-    const eyeL=points[33],eyeR=points[263];
+    const eyeL=points[33],eyeR=points[263],earL=points[127],earR=points[356];
     if(!left||!right||!nose||!bridge||!forehead||!chin||!eyeL||!eyeR)return null;
 
     const rightVec=toSceneVec({x:eyeR.x-eyeL.x,y:eyeR.y-eyeL.y,z:eyeR.z-eyeL.z});
@@ -348,25 +355,30 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     if(forwardHint.lengthSq()>1e-8&&zAxis.dot(forwardHint)<0)zAxis.multiplyScalar(-1);
 
     const yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
-
     const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
     const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
+    const euler=new THREE.Euler().setFromQuaternion(quat,"YXZ");
 
     const eyeCenterX=(eyeL.x+eyeR.x)*0.5;
     const eyeCenterY=(eyeL.y+eyeR.y)*0.5;
-    const anchorX=bridge.x*0.55+eyeCenterX*0.35+nose.x*0.10;
-    const anchorY=bridge.y*0.55+eyeCenterY*0.35+nose.y*0.10;
+    let anchorX=bridge.x*0.55+eyeCenterX*0.35+nose.x*0.10;
+    let anchorY=bridge.y*0.55+eyeCenterY*0.35+nose.y*0.10;
+    if(analysisState.ready&&analysisState.base){
+      anchorX=anchorX*0.78+analysisState.base.anchorX*0.22;
+      anchorY=anchorY*0.78+analysisState.base.anchorY*0.22;
+    }
+
     const pos=ndcToWorld(anchorX,anchorY);
     pos.y+=FIT.yOffset;
     pos.z+=FIT.zOffset;
 
     const eyeDist2d=Math.hypot(eyeR.x-eyeL.x,eyeR.y-eyeL.y);
     const faceWidth2d=Math.hypot(right.x-left.x,right.y-left.y);
-    const scaleSeed=eyeDist2d*0.72+faceWidth2d*0.28;
+    const earSpan2d=(earL&&earR)?Math.hypot(earR.x-earL.x,earR.y-earL.y):faceWidth2d;
+    const scaleSeed=eyeDist2d*0.62+faceWidth2d*0.23+earSpan2d*0.15;
     const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
-    const eyeRoll=Math.atan2(eyeR.y-eyeL.y,eyeR.x-eyeL.x);
 
-    return {position:pos,quaternion:quat,scale,eyeRoll};
+    return {position:pos,quaternion:quat,scale,anchorX,anchorY,eyeDist2d,faceWidth2d,earSpan2d,pitch:euler.x,roll:euler.z};
   }
 
   function syncModelTransform(cfg){
@@ -377,18 +389,94 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.initialized=false;
   }
 
+  function median(arr){
+    if(!arr||arr.length===0)return 0;
+    const sorted=[...arr].sort((a,b)=>a-b);
+    const mid=Math.floor(sorted.length*0.5);
+    return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])*0.5;
+  }
+
+  function resetFaceAnalysis(){
+    analysisState.count=0;
+    analysisState.samples={
+      anchorX:[],anchorY:[],eyeDist:[],faceWidth:[],earSpan:[],roll:[],pitch:[]
+    };
+  }
+
+  function startFaceAnalysis(){
+    analysisState.active=true;
+    analysisState.ready=false;
+    analysisState.base=null;
+    resetFaceAnalysis();
+    fitState.initialized=false;
+    hideModel();
+    setStatus("얼굴 분석 중... 정면을 1초 유지해 주세요");
+  }
+
+  function pushFaceSample(pose){
+    if(!analysisState.active||!analysisState.samples)return;
+    analysisState.samples.anchorX.push(pose.anchorX);
+    analysisState.samples.anchorY.push(pose.anchorY);
+    analysisState.samples.eyeDist.push(pose.eyeDist2d);
+    analysisState.samples.faceWidth.push(pose.faceWidth2d);
+    analysisState.samples.earSpan.push(pose.earSpan2d);
+    analysisState.samples.roll.push(pose.roll);
+    analysisState.samples.pitch.push(pose.pitch);
+    analysisState.count++;
+
+    if(analysisState.count>=analysisState.needed){
+      analysisState.base={
+        anchorX:median(analysisState.samples.anchorX),
+        anchorY:median(analysisState.samples.anchorY),
+        eyeDist:median(analysisState.samples.eyeDist),
+        faceWidth:median(analysisState.samples.faceWidth),
+        earSpan:median(analysisState.samples.earSpan),
+        roll:median(analysisState.samples.roll),
+        pitch:median(analysisState.samples.pitch),
+      };
+      analysisState.active=false;
+      analysisState.ready=true;
+      fitState.initialized=false;
+      setStatus("얼굴 분석 완료: 피팅 시작");
+    }else if((analysisState.count%8)===0){
+      const p=Math.min(100,Math.round((analysisState.count/analysisState.needed)*100));
+      setStatus(`얼굴 분석 중... ${p}%`);
+    }
+  }
+
   function applyModel(pose){
     let target=null;
     if(glasses)target=glasses;
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
-    const correctedQuat=pose.quaternion;
+    if(!analysisState.ready){
+      if(!analysisState.active)startFaceAnalysis();
+      pushFaceSample(pose);
+      hideModel();
+      return;
+    }
+
+    let correctedQuat=pose.quaternion;
+    let targetScale=pose.scale;
+
+    if(analysisState.base){
+      const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
+      const pitchAbs=Math.abs(e.x);
+      const rollGain=(pitchAbs>THREE.MathUtils.degToRad(18))?0.25:0.55;
+      e.z=analysisState.base.roll+((e.z-analysisState.base.roll)*rollGain);
+      correctedQuat=new THREE.Quaternion().setFromEuler(e);
+
+      const baseSpan=Math.max(analysisState.base.earSpan||0,analysisState.base.faceWidth||0,1e-6);
+      const nowSpan=Math.max(pose.earSpan2d||0,pose.faceWidth2d||0,1e-6);
+      const widthRatio=THREE.MathUtils.clamp(baseSpan/nowSpan,0.90,1.10);
+      targetScale=pose.scale*(0.78+(widthRatio*0.22));
+    }
 
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
       fitState.quaternion.copy(correctedQuat);
-      fitState.scale=pose.scale;
+      fitState.scale=targetScale;
       fitState.initialized=true;
     }else{
       const posDeltaSq=fitState.position.distanceToSquared(pose.position);
@@ -402,9 +490,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         fitState.quaternion.slerp(fitState.targetQuaternion,FIT.rotationSmooth);
       }
 
-      const scaleDelta=Math.abs(pose.scale-fitState.scale);
+      const scaleDelta=Math.abs(targetScale-fitState.scale);
       if(scaleDelta>FIT.scaleDeadzone){
-        fitState.scale=THREE.MathUtils.lerp(fitState.scale,pose.scale,FIT.scaleSmooth);
+        fitState.scale=THREE.MathUtils.lerp(fitState.scale,targetScale,FIT.scaleSmooth);
       }
     }
 
@@ -567,6 +655,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     try{
       setStatus("카메라 시작 중...");
       fitState.initialized=false;
+      startFaceAnalysis();
 
       if(!pipelineReady)ensurePipeline();
       if(typeof Camera==="undefined")throw new Error("Camera unavailable");
@@ -630,8 +719,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   startBtn.addEventListener("click",start);
   stopBtn.addEventListener("click",stop);
   recalibrateBtn.addEventListener("click",()=>{
-    fitState.initialized=false;
-    setStatus("정면 기준 재설정: 얼굴을 화면 중앙에 맞춰주세요");
+    startFaceAnalysis();
   });
   window.addEventListener("error",(evt)=>{
     const msg=String(evt?.message||"");
@@ -643,8 +731,4 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
-
-
-
-
 
