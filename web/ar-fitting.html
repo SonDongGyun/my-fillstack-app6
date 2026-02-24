@@ -576,7 +576,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const pupilMidY=(pupilR&&pupilL)?(pupilR.y+pupilL.y)*0.5:eyeCenterY;
 
     let anchorX=bridge.x*0.56+pupilMidX*0.40+nose.x*0.04;
-    let anchorY=bridge.y*0.58+pupilMidY*0.37+nose.y*0.05;
+    let anchorY=bridge.y*0.46+pupilMidY*0.48+nose.y*0.06;
     if(analysisState.ready&&analysisState.base){
       const eTmp=new THREE.Euler().setFromQuaternion(quat,"YXZ");
       const frontal=THREE.MathUtils.clamp(
@@ -585,7 +585,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         1
       );
       anchorX=anchorX*(1-(0.14*frontal))+analysisState.base.anchorX*(0.14*frontal);
-      anchorY=anchorY*(1-(0.20*frontal))+analysisState.base.anchorY*(0.20*frontal);
+      anchorY=anchorY*(1-(0.12*frontal))+analysisState.base.anchorY*(0.12*frontal);
     }
 
     const pos=ndcToWorld(anchorX,anchorY);
@@ -715,12 +715,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       const e=new THREE.Euler().setFromQuaternion(pose.quaternion,"YXZ");
       const pitchAbs=Math.abs(e.x);
       const yawAbs=Math.abs(e.y);
-      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(20))+(yawAbs/THREE.MathUtils.degToRad(26)))*0.5,0.06,1);
-      const rollGain=0.03+(frontalFactor*0.09);
+      const frontalFactor=THREE.MathUtils.clamp(1-((pitchAbs/THREE.MathUtils.degToRad(16))+(yawAbs/THREE.MathUtils.degToRad(22)))*0.5,0.04,1);
+      const rollGain=0.018+(frontalFactor*0.055);
       const rollDelta=(analysisState.base.eyeRoll-pose.eyeRoll)*rollGain;
-      const rollClamp=THREE.MathUtils.degToRad(6);
+      const rollClamp=THREE.MathUtils.degToRad(3.5);
       const rollBase=analysisState.base.roll||0;
-      e.z=THREE.MathUtils.clamp(rollBase+rollDelta,rollBase-rollClamp,rollBase+rollClamp);
+      const dynamicRoll=THREE.MathUtils.clamp(rollBase+rollDelta,rollBase-rollClamp,rollBase+rollClamp);
+      const frontalLevelLock=THREE.MathUtils.clamp((frontalFactor-0.62)/0.38,0,1);
+      e.z=THREE.MathUtils.lerp(dynamicRoll,rollBase,frontalLevelLock*0.88);
       correctedQuat=new THREE.Quaternion().setFromEuler(e);
 
       const pdBase=Math.max(analysisState.base.pdNorm||analysisState.base.eyeDist||1e-6,1e-6);
