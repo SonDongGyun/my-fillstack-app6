@@ -134,7 +134,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const glossRange=document.getElementById("glossRange");
   const glossVal=document.getElementById("glossVal");
 
-  const TUNE_STORAGE_KEY="arModelTuneV3";
+  const TUNE_STORAGE_KEY="arModelTuneV4";
   const STYLE_STORAGE_KEY="arStyleV1";
 
   const MODEL_OPTIONS=[
@@ -497,7 +497,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     root.rotation.set(0,0,0);
     root.scale.set(1,1,1);
 
-    const yawCandidates=[0,Math.PI*0.5,-Math.PI*0.5,Math.PI];
+    const yawCandidates=[Math.PI*0.5,-Math.PI*0.5,0,Math.PI];
     let bestYaw=0;
     let bestScore=-Infinity;
 
@@ -506,9 +506,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       root.updateMatrixWorld(true);
       const {size}=safeBoxSize(root);
       if(size.x<=1e-6||size.y<=1e-6||size.z<=1e-6)return;
-      const width=Math.max(size.x,size.z);
-      const depth=Math.min(size.x,size.z);
-      const score=width/(depth+1e-6);
+      const width=size.x;
+      const depth=size.z;
+      const height=size.y;
+      const score=(width*0.22)+(height*0.08)-(depth*1.0);
       if(score>bestScore){
         bestScore=score;
         bestYaw=yaw;
