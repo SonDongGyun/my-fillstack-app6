@@ -1,0 +1,214 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>안경 AR 가상 피팅 | 눈건강 시력지킴이</title>
+<meta name="description" content="카메라 얼굴 인식 기반 3D 안경 AR 가상 피팅" />
+<style>
+:root{--b900:#0b3d91;--line:#cfe3ff;--ink:#112a4a;--muted:#45658d}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:radial-gradient(1100px 640px at 10% -10%,#fff 0%,#f3f9ff 45%,#e8f2ff 100%),linear-gradient(180deg,#f8fcff 0%,#eaf4ff 100%);padding:24px}
+.app{width:min(1040px,100%);margin:0 auto;border:1px solid var(--line);border-radius:22px;background:#ffffffdb;box-shadow:0 20px 48px #79acee24;padding:20px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.title{margin:0;color:var(--b900);font-size:1.3rem}
+.sub{margin:6px 0 0;color:var(--muted);font-size:.92rem}
+.ghost-btn,.primary-btn{border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.ghost-btn{border:1px solid #d2e5ff;color:#1d5eb4;background:#f9fcff}
+.primary-btn{border:0;color:#fff;background:linear-gradient(120deg,#1459c2,#2e7be8)}
+.layout{display:grid;gap:14px;grid-template-columns:1.2fr .8fr}
+.viewer{position:relative;border:1px solid #cfe2ff;border-radius:14px;background:#000;overflow:hidden;aspect-ratio:16/10}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.side{border:1px solid #d8e9ff;border-radius:14px;background:#fbfdff;padding:12px}
+.side h2{margin:0 0 10px;color:#164f9f;font-size:1.03rem}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.note{color:#325780;font-size:.88rem;line-height:1.6}
+.status{margin-top:8px;font-size:.88rem;color:#45658d;min-height:1.2rem}
+@media (max-width:920px){.layout{grid-template-columns:1fr} body{padding:10px}.app{padding:12px}}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="head">
+    <div>
+      <h1 class="title">안경 AR 가상 피팅</h1>
+      <p class="sub">얼굴 랜드마크를 기준으로 3D 안경을 실시간 오버레이합니다.</p>
+    </div>
+    <a class="ghost-btn" href="/?view=home">운동 시작하기</a>
+  </section>
+
+  <section class="layout">
+    <div class="viewer">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="arCanvas"></canvas>
+    </div>
+    <aside class="side">
+      <h2>피팅 컨트롤</h2>
+      <div class="ctrl">
+        <button id="startBtn" class="primary-btn" type="button">카메라 시작</button>
+        <button id="stopBtn" class="ghost-btn" type="button">중지</button>
+      </div>
+      <div class="note">모델 경로: <code>/static/models/glasses.glb</code><br/>모델 로드 실패 시 기본 안경 프레임으로 자동 대체됩니다.</div>
+      <div id="status" class="status">대기 중</div>
+    </aside>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script>
+(()=>{
+  const video=document.getElementById("video");
+  const canvas=document.getElementById("arCanvas");
+  const startBtn=document.getElementById("startBtn");
+  const stopBtn=document.getElementById("stopBtn");
+  const status=document.getElementById("status");
+
+  let cam=null;
+  let glasses=null;
+  let fallback=null;
+
+  const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(45,1,0.1,100);
+  camera.position.set(0,0,3.2);
+  scene.add(new THREE.AmbientLight(0xffffff,1.2));
+  const keyLight=new THREE.DirectionalLight(0xffffff,1.0);
+  keyLight.position.set(0,1.8,2.3);
+  scene.add(keyLight);
+
+  function resize(){
+    const w=canvas.clientWidth||640;
+    const h=canvas.clientHeight||480;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize",resize);
+  resize();
+
+  function createFallbackGlasses(){
+    const group=new THREE.Group();
+    const mat=new THREE.MeshStandardMaterial({color:0x2b3b54,roughness:0.35,metalness:0.2});
+    const lensL=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.015,14,40),mat);
+    const lensR=lensL.clone();
+    lensL.position.x=-0.30;
+    lensR.position.x=0.30;
+    const bridge=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.02,0.02),mat);
+    const templeL=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,0.42),mat);
+    const templeR=templeL.clone();
+    templeL.position.set(-0.55,0,-0.18);
+    templeR.position.set(0.55,0,-0.18);
+    group.add(lensL,lensR,bridge,templeL,templeR);
+    group.visible=false;
+    scene.add(group);
+    return group;
+  }
+
+  fallback=createFallbackGlasses();
+
+  function setStatus(txt){ status.textContent=txt; }
+
+  function loadGlasses(){
+    return new Promise((resolve)=>{
+      const loader=new THREE.GLTFLoader();
+      loader.load("/static/models/glasses.glb",(gltf)=>{
+        glasses=gltf.scene;
+        glasses.visible=false;
+        glasses.scale.setScalar(0.95);
+        scene.add(glasses);
+        setStatus("GLB 모델 로드 완료");
+        resolve();
+      },undefined,()=>{
+        setStatus("GLB 모델 없음: 기본 프레임 사용");
+        resolve();
+      });
+    });
+  }
+
+  function getPose(points){
+    const left=points[33];
+    const right=points[263];
+    const nose=points[1];
+    if(!left||!right||!nose)return null;
+
+    const cx=(left.x+right.x)*0.5;
+    const cy=(left.y+right.y)*0.5;
+    const eyeDist=Math.hypot(right.x-left.x,right.y-left.y);
+    const roll=Math.atan2(right.y-left.y,right.x-left.x);
+    const yaw=(nose.x-cx)*2.2;
+    const pitch=(nose.y-cy)*2.0;
+
+    return {cx,cy,eyeDist,roll,yaw,pitch};
+  }
+
+  function applyModel(pose){
+    const target=glasses||fallback;
+    if(!target)return;
+    const x=(pose.cx-0.5)*1.9;
+    const y=-(pose.cy-0.5)*1.9+0.02;
+    const s=Math.max(0.35,Math.min(1.25,pose.eyeDist*5.0));
+
+    target.visible=true;
+    target.position.set(x,y,0);
+    target.rotation.set(-pose.pitch*0.45,-pose.yaw*0.55,-pose.roll);
+    target.scale.setScalar(s);
+  }
+
+  function hideModel(){
+    if(glasses)glasses.visible=false;
+    if(fallback)fallback.visible=false;
+  }
+
+  const faceMesh=new FaceMesh({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+  faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.55,minTrackingConfidence:0.55});
+  faceMesh.onResults((results)=>{
+    const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
+    if(pts){
+      const pose=getPose(pts);
+      if(pose){
+        applyModel(pose);
+      }else hideModel();
+    }else hideModel();
+    renderer.render(scene,camera);
+  });
+
+  async function start(){
+    try{
+      setStatus("카메라 시작 중...");
+      if(!cam){
+        cam=new Camera(video,{onFrame:async()=>{ await faceMesh.send({image:video}); },width:960,height:720});
+      }
+      await cam.start();
+      setStatus("실행 중");
+      startBtn.disabled=true;
+    }catch(err){
+      setStatus("카메라 시작 실패: 권한/HTTPS 확인 필요");
+      console.error(err);
+    }
+  }
+
+  function stop(){
+    try{
+      if(video&&video.srcObject){
+        video.srcObject.getTracks().forEach((t)=>t.stop());
+        video.srcObject=null;
+      }
+      hideModel();
+      renderer.render(scene,camera);
+      setStatus("중지됨");
+      startBtn.disabled=false;
+    }catch(_){ }
+  }
+
+  startBtn.addEventListener("click",start);
+  stopBtn.addEventListener("click",stop);
+
+  loadGlasses();
+})();
+</script>
+</body>
+</html>
