@@ -27,6 +27,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 .select-wrap{margin:10px 0 12px}
 .select-label{display:block;margin:0 0 6px;font-size:.84rem;color:#3b5f8c;font-weight:700}
 .select{width:100%;border:1px solid #cfe2ff;border-radius:10px;background:#fff;padding:10px 11px;font-size:.92rem;color:#224061}
+.tune-grid{display:grid;gap:8px;margin-top:6px}
+.tune-row{display:grid;grid-template-columns:82px 1fr 52px;gap:8px;align-items:center}
+.tune-name{font-size:.8rem;color:#355985;font-weight:700}
+.tune-val{font-size:.78rem;color:#355985;text-align:right}
+.tune-row input[type="range"]{width:100%}
 .note{color:#325780;font-size:.88rem;line-height:1.6}
 .status{margin-top:8px;font-size:.88rem;color:#45658d;min-height:1.2rem}
 @media (max-width:920px){.layout{grid-template-columns:1fr} body{padding:10px}.app{padding:12px}}
@@ -37,7 +42,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   <section class="head">
     <div>
       <h1 class="title">안경 AR 가상 피팅</h1>
-      <p class="sub">얼굴 정렬/회전 보정 + 카메라 배율 조절을 지원합니다.</p>
+      <p class="sub">모델별 미세 보정을 실시간으로 조절해 정렬을 맞출 수 있습니다.</p>
     </div>
     <a class="ghost-btn" href="/?view=home">운동 시작하기</a>
   </section>
@@ -52,6 +57,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       <div class="ctrl">
         <button id="startBtn" class="primary-btn" type="button">카메라 시작</button>
         <button id="stopBtn" class="ghost-btn" type="button">중지</button>
+        <button id="recalibrateBtn" class="ghost-btn" type="button">정면 재보정</button>
       </div>
       <div class="ctrl">
         <button id="zoomOutBtn" class="ghost-btn" type="button">화면 축소</button>
@@ -62,7 +68,20 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
-      <div class="note">오늘 생성된 GLB 3개를 model A/B/C로 적용했습니다.</div>
+      <div class="select-wrap" id="tunePanel">
+        <label class="select-label">모델 미세 보정</label>
+        <div class="tune-grid">
+          <div class="tune-row"><span class="tune-name">Yaw</span><input id="yawRange" type="range" min="-180" max="180" step="1"/><span id="yawVal" class="tune-val">0</span></div>
+          <div class="tune-row"><span class="tune-name">Pitch</span><input id="pitchRange" type="range" min="-90" max="90" step="1"/><span id="pitchVal" class="tune-val">0</span></div>
+          <div class="tune-row"><span class="tune-name">Roll</span><input id="rollRange" type="range" min="-180" max="180" step="1"/><span id="rollVal" class="tune-val">0</span></div>
+          <div class="tune-row"><span class="tune-name">Offset Y</span><input id="offsetYRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetYVal" class="tune-val">0</span></div>
+          <div class="tune-row"><span class="tune-name">Offset Z</span><input id="offsetZRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetZVal" class="tune-val">0</span></div>
+          <div class="tune-row"><span class="tune-name">Scale</span><input id="scaleRange" type="range" min="0.40" max="2.20" step="0.01"/><span id="scaleVal" class="tune-val">1</span></div>
+          <div class="tune-row"><span class="tune-name">RollGain</span><input id="rollGainRange" type="range" min="0" max="1.20" step="0.01"/><span id="rollGainVal" class="tune-val">0.55</span></div>
+        </div>
+        <div class="ctrl" style="margin-top:8px"><button id="tuneResetBtn" class="ghost-btn" type="button">현재 모델 보정 초기화</button></div>
+      </div>
+      <div class="note">A/B/C 각각 다른 보정값으로 저장됩니다(브라우저 로컬 저장).</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -74,11 +93,32 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const canvas=document.getElementById("arCanvas");
   const startBtn=document.getElementById("startBtn");
   const stopBtn=document.getElementById("stopBtn");
+  const recalibrateBtn=document.getElementById("recalibrateBtn");
   const zoomOutBtn=document.getElementById("zoomOutBtn");
   const zoomResetBtn=document.getElementById("zoomResetBtn");
   const zoomInBtn=document.getElementById("zoomInBtn");
   const modelSelect=document.getElementById("modelSelect");
+  const tunePanel=document.getElementById("tunePanel");
+  const tuneResetBtn=document.getElementById("tuneResetBtn");
   const status=document.getElementById("status");
+
+  const yawRange=document.getElementById("yawRange");
+  const pitchRange=document.getElementById("pitchRange");
+  const rollRange=document.getElementById("rollRange");
+  const offsetYRange=document.getElementById("offsetYRange");
+  const offsetZRange=document.getElementById("offsetZRange");
+  const scaleRange=document.getElementById("scaleRange");
+  const rollGainRange=document.getElementById("rollGainRange");
+
+  const yawVal=document.getElementById("yawVal");
+  const pitchVal=document.getElementById("pitchVal");
+  const rollVal=document.getElementById("rollVal");
+  const offsetYVal=document.getElementById("offsetYVal");
+  const offsetZVal=document.getElementById("offsetZVal");
+  const scaleVal=document.getElementById("scaleVal");
+  const rollGainVal=document.getElementById("rollGainVal");
+
+  const TUNE_STORAGE_KEY="arModelTuneV2";
 
   const MODEL_OPTIONS=[
     {label:"기본 프레임 (모델 없음)",path:"",yaw:0,pitch:0,roll:0,offsetY:0,offsetZ:0,scale:1},
@@ -106,7 +146,41 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     rollGain:0.55,
   };
 
+  const modelTune={};
+  MODEL_OPTIONS.forEach((m)=>{ if(m.path)modelTune[m.path]={}; });
+
+  function deg(rad){ return rad*180/Math.PI; }
+  function rad(degVal){ return degVal*Math.PI/180; }
+  function f2(v){ return Number(v).toFixed(2); }
+  function f3(v){ return Number(v).toFixed(3); }
+
   function setStatus(txt){ status.textContent=txt; }
+
+  function loadTuneStorage(){
+    try{
+      const raw=localStorage.getItem(TUNE_STORAGE_KEY);
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!parsed||typeof parsed!=="object")return;
+      Object.keys(parsed).forEach((path)=>{
+        if(modelTune[path])Object.assign(modelTune[path],parsed[path]);
+      });
+    }catch(_){ }
+  }
+
+  function saveTuneStorage(){
+    try{ localStorage.setItem(TUNE_STORAGE_KEY,JSON.stringify(modelTune)); }catch(_){ }
+  }
+
+  function getModelBase(path){
+    return MODEL_OPTIONS.find((m)=>m.path===path)||MODEL_OPTIONS[0];
+  }
+
+  function getEffectiveCfg(path){
+    const base=getModelBase(path);
+    if(!path)return {...base};
+    return {...base,...(modelTune[path]||{})};
+  }
 
   function applyViewZoom(){
     const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`;
@@ -163,7 +237,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let pipelineReady=false;
   let glasses=null;
   let fallback=null;
-  let selectedModelCfg=MODEL_OPTIONS[1];
+  let selectedModelCfg=getEffectiveCfg(MODEL_OPTIONS[1].path);
   let selectedModelPath=selectedModelCfg.path;
   let modelLoadSeq=0;
   let modelRotQuat=null;
@@ -173,22 +247,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let isModelSwitching=false;
   let viewZoom=1;
 
-  const rollState={
-    calibrating:true,
-    samples:0,
-    maxSamples:24,
-    sum:0,
-    bias:0,
-  };
+  const rollState={calibrating:true,samples:0,maxSamples:24,sum:0,bias:0,lastEyeRoll:0};
 
-  const fitState={
-    initialized:false,
-    position:null,
-    quaternion:null,
-    scale:1,
-    targetQuaternion:null,
-    rollCorrectQuat:null,
-  };
+  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null,rollCorrectQuat:null,rollEuler:null};
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -215,6 +276,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.quaternion=new THREE.Quaternion();
     fitState.targetQuaternion=new THREE.Quaternion();
     fitState.rollCorrectQuat=new THREE.Quaternion();
+    fitState.rollEuler=new THREE.Euler(0,0,0,"YXZ");
     modelRotQuat=new THREE.Quaternion();
 
     applyViewZoom();
@@ -270,9 +332,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     return new THREE.Vector3((nx-0.5)*2*halfW,-(ny-0.5)*2*halfH,0);
   }
 
-  function toSceneVec(p){
-    return new THREE.Vector3(p.x,-p.y,-p.z);
-  }
+  function toSceneVec(p){ return new THREE.Vector3(p.x,-p.y,-p.z); }
 
   function getPose(points){
     const left=points[234],right=points[454],nose=points[6],forehead=points[10],chin=points[152];
@@ -302,12 +362,28 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     return {position:pos,quaternion:quat,scale,eyeRoll};
   }
 
+  function syncModelTransform(cfg){
+    if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
+    modelOffsetY=cfg.offsetY||0;
+    modelOffsetZ=cfg.offsetZ||0;
+    modelScaleMul=cfg.scale||1;
+    fitState.initialized=false;
+  }
+
+  function beginRollCalibration(sampleCount=24){
+    rollState.calibrating=true;
+    rollState.samples=0;
+    rollState.maxSamples=Math.max(8,Number(sampleCount)||24);
+    rollState.sum=0;
+  }
+
   function applyModel(pose){
     let target=null;
     if(glasses)target=glasses;
     else if(!selectedModelPath&&!isModelSwitching)target=fallback;
     if(!target)return;
 
+    rollState.lastEyeRoll=pose.eyeRoll;
     if(rollState.calibrating){
       rollState.sum+=pose.eyeRoll;
       rollState.samples++;
@@ -318,8 +394,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }
 
     const correctedRoll=(pose.eyeRoll-rollState.bias)*FIT.rollGain;
-    fitState.rollCorrectQuat.setFromEuler(new THREE.Euler(0,0,-correctedRoll));
-    const correctedQuat=pose.quaternion.clone().premultiply(fitState.rollCorrectQuat);
+    fitState.rollEuler.setFromQuaternion(pose.quaternion,"YXZ");
+    fitState.rollEuler.z=-correctedRoll;
+    const correctedQuat=fitState.rollCorrectQuat.setFromEuler(fitState.rollEuler);
 
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
@@ -373,9 +450,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
     if(!path){
       if(modelRotQuat)modelRotQuat.identity();
-      modelOffsetY=0;
-      modelOffsetZ=0;
-      modelScaleMul=1;
+      modelOffsetY=0; modelOffsetZ=0; modelScaleMul=1;
       setStatus("기본 프레임 모드");
       isModelSwitching=false;
       return;
@@ -390,22 +465,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     await new Promise((resolve)=>{
       const loader=new THREE.GLTFLoader();
       loader.load(path,(gltf)=>{
-        if(seq!==modelLoadSeq){
-          disposeObject3D(gltf.scene);
-          resolve();
-          return;
-        }
+        if(seq!==modelLoadSeq){ disposeObject3D(gltf.scene); resolve(); return; }
         clearGlasses();
         glasses=gltf.scene;
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
         if(fallback)fallback.visible=false;
-        if(modelRotQuat)modelRotQuat.setFromEuler(new THREE.Euler(cfg.pitch||0,cfg.yaw||0,cfg.roll||0));
-        modelOffsetY=cfg.offsetY||0;
-        modelOffsetZ=cfg.offsetZ||0;
-        modelScaleMul=cfg.scale||1;
-        fitState.initialized=false;
+        syncModelTransform(cfg);
         setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         isModelSwitching=false;
         resolve();
@@ -414,6 +481,73 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         if(seq===modelLoadSeq)isModelSwitching=false;
         resolve();
       });
+    });
+  }
+
+  function setTuneEnabled(enabled){
+    tunePanel.style.opacity=enabled?"1":"0.5";
+    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange,tuneResetBtn].forEach((el)=>el.disabled=!enabled);
+  }
+
+  function syncTuneUI(cfg){
+    yawRange.value=String(Math.round(deg(cfg.yaw||0)));
+    pitchRange.value=String(Math.round(deg(cfg.pitch||0)));
+    rollRange.value=String(Math.round(deg(cfg.roll||0)));
+    offsetYRange.value=String(cfg.offsetY||0);
+    offsetZRange.value=String(cfg.offsetZ||0);
+    scaleRange.value=String(cfg.scale||1);
+    rollGainRange.value=String(FIT.rollGain);
+
+    yawVal.textContent=String(Math.round(deg(cfg.yaw||0)));
+    pitchVal.textContent=String(Math.round(deg(cfg.pitch||0)));
+    rollVal.textContent=String(Math.round(deg(cfg.roll||0)));
+    offsetYVal.textContent=f3(cfg.offsetY||0);
+    offsetZVal.textContent=f3(cfg.offsetZ||0);
+    scaleVal.textContent=f2(cfg.scale||1);
+    rollGainVal.textContent=f2(FIT.rollGain);
+  }
+
+  function setupTuneControls(){
+    const onChange=()=>{
+      FIT.rollGain=Number(rollGainRange.value);
+      rollGainVal.textContent=f2(FIT.rollGain);
+      if(!selectedModelPath)return;
+
+      const tune={
+        yaw:rad(Number(yawRange.value)),
+        pitch:rad(Number(pitchRange.value)),
+        roll:rad(Number(rollRange.value)),
+        offsetY:Number(offsetYRange.value),
+        offsetZ:Number(offsetZRange.value),
+        scale:Number(scaleRange.value),
+      };
+      modelTune[selectedModelPath]={...modelTune[selectedModelPath],...tune};
+      selectedModelCfg=getEffectiveCfg(selectedModelPath);
+      syncModelTransform(selectedModelCfg);
+      saveTuneStorage();
+
+      yawVal.textContent=String(Math.round(Number(yawRange.value)));
+      pitchVal.textContent=String(Math.round(Number(pitchRange.value)));
+      rollVal.textContent=String(Math.round(Number(rollRange.value)));
+      offsetYVal.textContent=f3(Number(offsetYRange.value));
+      offsetZVal.textContent=f3(Number(offsetZRange.value));
+      scaleVal.textContent=f2(Number(scaleRange.value));
+      setStatus("미세 보정값 적용됨");
+    };
+
+    [yawRange,pitchRange,rollRange,offsetYRange,offsetZRange,scaleRange,rollGainRange].forEach((el)=>{
+      el.addEventListener("input",onChange);
+      el.addEventListener("change",onChange);
+    });
+
+    tuneResetBtn.addEventListener("click",()=>{
+      if(!selectedModelPath)return;
+      modelTune[selectedModelPath]={};
+      selectedModelCfg=getEffectiveCfg(selectedModelPath);
+      syncTuneUI(selectedModelCfg);
+      syncModelTransform(selectedModelCfg);
+      saveTuneStorage();
+      setStatus("현재 모델 보정값 초기화 완료");
     });
   }
 
@@ -428,8 +562,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     modelSelect.value=selectedModelPath;
     modelSelect.addEventListener("change",async()=>{
       selectedModelPath=modelSelect.value;
-      const current=MODEL_OPTIONS.find((m)=>m.path===selectedModelPath);
-      selectedModelCfg=current||MODEL_OPTIONS[0];
+      selectedModelCfg=getEffectiveCfg(selectedModelPath);
+      setTuneEnabled(!!selectedModelPath);
+      syncTuneUI(selectedModelCfg);
       await loadGlasses(selectedModelPath,selectedModelCfg);
     });
   }
@@ -437,10 +572,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function start(){
     try{
       setStatus("카메라 시작 중...");
-      rollState.calibrating=true;
-      rollState.samples=0;
-      rollState.sum=0;
       rollState.bias=0;
+      beginRollCalibration(24);
       fitState.initialized=false;
 
       if(!pipelineReady)ensurePipeline();
@@ -475,30 +608,25 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   }
 
   function setupZoomControls(){
-    zoomInBtn.addEventListener("click",()=>{
-      viewZoom=Math.min(1.8,viewZoom+0.1);
-      applyViewZoom();
-      setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`);
-    });
-    zoomOutBtn.addEventListener("click",()=>{
-      viewZoom=Math.max(0.8,viewZoom-0.1);
-      applyViewZoom();
-      setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`);
-    });
-    zoomResetBtn.addEventListener("click",()=>{
-      viewZoom=1;
-      applyViewZoom();
-      setStatus("화면 배율: 1.0x");
-    });
+    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
+    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); setStatus(`화면 배율: ${viewZoom.toFixed(1)}x`); });
+    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); setStatus("화면 배율: 1.0x"); });
   }
 
   async function boot(){
     try{
+      loadTuneStorage();
       await ensureDeps();
       initRenderer();
       fallback=createFallbackGlasses();
       setupModelSelect();
+      setupTuneControls();
       setupZoomControls();
+
+      selectedModelCfg=getEffectiveCfg(selectedModelPath);
+      setTuneEnabled(!!selectedModelPath);
+      syncTuneUI(selectedModelCfg);
+
       await loadGlasses(selectedModelPath,selectedModelCfg);
       setStatus("대기 중");
     }catch(err){
@@ -509,6 +637,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   startBtn.addEventListener("click",start);
   stopBtn.addEventListener("click",stop);
+  recalibrateBtn.addEventListener("click",()=>{
+    beginRollCalibration(18);
+    fitState.initialized=false;
+    setStatus("정면 재보정 중... 화면을 정면으로 1초 유지해 주세요");
+  });
   window.addEventListener("error",(evt)=>{
     const msg=String(evt?.message||"");
     if(msg)setStatus(`오류: ${msg}`);
@@ -519,3 +652,4 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
