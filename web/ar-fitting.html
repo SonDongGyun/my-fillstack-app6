@@ -24,6 +24,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 .side{border:1px solid #d8e9ff;border-radius:14px;background:#fbfdff;padding:12px}
 .side h2{margin:0 0 10px;color:#164f9f;font-size:1.03rem}
 .ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.select-wrap{margin:10px 0 12px}
+.select-label{display:block;margin:0 0 6px;font-size:.84rem;color:#3b5f8c;font-weight:700}
+.select{width:100%;border:1px solid #cfe2ff;border-radius:10px;background:#fff;padding:10px 11px;font-size:.92rem;color:#224061}
 .note{color:#325780;font-size:.88rem;line-height:1.6}
 .status{margin-top:8px;font-size:.88rem;color:#45658d;min-height:1.2rem}
 @media (max-width:920px){.layout{grid-template-columns:1fr} body{padding:10px}.app{padding:12px}}
@@ -50,7 +53,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <button id="startBtn" class="primary-btn" type="button">카메라 시작</button>
         <button id="stopBtn" class="ghost-btn" type="button">중지</button>
       </div>
-      <div class="note">현재는 기본 안경 프레임 모드입니다.<br/>3D 모델을 쓰려면 코드의 <code>GLB_MODEL_PATH</code>에 경로를 넣어주세요.</div>
+      <div class="select-wrap">
+        <label class="select-label" for="modelSelect">안경 모델 선택</label>
+        <select id="modelSelect" class="select"></select>
+      </div>
+      <div class="note">다운로드한 GLB 5종을 선택해서 번갈아 피팅할 수 있습니다.</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -62,31 +69,23 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const canvas=document.getElementById("arCanvas");
   const startBtn=document.getElementById("startBtn");
   const stopBtn=document.getElementById("stopBtn");
+  const modelSelect=document.getElementById("modelSelect");
   const status=document.getElementById("status");
 
-  const GLB_MODEL_PATH="";
+  const MODEL_OPTIONS=[
+    {label:"기본 프레임 (모델 없음)",path:""},
+    {label:"lowpoly_minimal",path:"/static/models/lowpoly_minimal.glb"},
+    {label:"oversized",path:"/static/models/oversized.glb"},
+    {label:"round_metal",path:"/static/models/round_metal.glb"},
+    {label:"square_black",path:"/static/models/square_black.glb"},
+    {label:"sunglasses",path:"/static/models/sunglasses.glb"}
+  ];
 
   const LIB_SOURCES={
-    three:[
-      "/static/vendor/three.min.js",
-      "https://cdn.jsdelivr.net/npm/three/build/three.min.js",
-      "https://unpkg.com/three/build/three.min.js"
-    ],
-    gltf:[
-      "/static/vendor/GLTFLoader.js",
-      "https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js",
-      "https://unpkg.com/three/examples/js/loaders/GLTFLoader.js"
-    ],
-    camera:[
-      "/static/vendor/camera_utils.js",
-      "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js",
-      "https://unpkg.com/@mediapipe/camera_utils/camera_utils.js"
-    ],
-    facemesh:[
-      "/static/vendor/face_mesh.js",
-      "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js",
-      "https://unpkg.com/@mediapipe/face_mesh/face_mesh.js"
-    ]
+    three:["/static/vendor/three.min.js","https://cdn.jsdelivr.net/npm/three/build/three.min.js"],
+    gltf:["/static/vendor/GLTFLoader.js","https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"],
+    camera:["/static/vendor/camera_utils.js","https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"],
+    facemesh:["/static/vendor/face_mesh.js","https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"]
   };
 
   function setStatus(txt){ status.textContent=txt; }
@@ -105,12 +104,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function loadFromAny(urls){
     let lastErr=null;
     for(const url of urls){
-      try{
-        await loadScript(url);
-        return;
-      }catch(err){
-        lastErr=err;
-      }
+      try{ await loadScript(url); return; }
+      catch(err){ lastErr=err; }
     }
     throw lastErr||new Error("script load failed");
   }
@@ -130,7 +125,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("얼굴 인식 모듈 로드 중...");
       await loadFromAny(LIB_SOURCES.facemesh);
     }
-
     if(typeof window.THREE.GLTFLoader==="undefined"){
       try{ await loadFromAny(LIB_SOURCES.gltf); }catch(_){ }
     }
@@ -144,6 +138,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let pipelineReady=false;
   let glasses=null;
   let fallback=null;
+  let selectedModelPath=MODEL_OPTIONS[1].path;
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -183,6 +178,13 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     group.visible=false;
     scene.add(group);
     return group;
+  }
+
+  function clearGlasses(){
+    if(glasses){
+      scene.remove(glasses);
+      glasses=null;
+    }
   }
 
   function getPose(points){
@@ -229,26 +231,45 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     pipelineReady=true;
   }
 
-  function loadGlasses(){
-    return new Promise((resolve)=>{
-      if(!GLB_MODEL_PATH){
-        setStatus("기본 프레임 모드 (GLB 미설정)");
-        resolve();
-        return;
-      }
-      if(!THREE.GLTFLoader){
-        setStatus("GLB 로더 없음: 기본 프레임 사용");
-        resolve();
-        return;
-      }
+  async function loadGlasses(path){
+    clearGlasses();
+    if(!path){
+      setStatus("기본 프레임 모드");
+      return;
+    }
+    if(!THREE.GLTFLoader){
+      setStatus("GLB 로더 없음: 기본 프레임 사용");
+      return;
+    }
+
+    await new Promise((resolve)=>{
       const loader=new THREE.GLTFLoader();
-      loader.load(GLB_MODEL_PATH,(gltf)=>{
+      loader.load(path,(gltf)=>{
         glasses=gltf.scene;
         glasses.visible=false;
         glasses.scale.setScalar(0.95);
         scene.add(glasses);
+        setStatus(`모델 선택 완료: ${path.split("/").pop()}`);
         resolve();
-      },undefined,()=>resolve());
+      },undefined,()=>{
+        setStatus("선택 모델 로드 실패: 기본 프레임 사용");
+        resolve();
+      });
+    });
+  }
+
+  function setupModelSelect(){
+    modelSelect.innerHTML="";
+    MODEL_OPTIONS.forEach((opt)=>{
+      const el=document.createElement("option");
+      el.value=opt.path;
+      el.textContent=opt.label;
+      modelSelect.appendChild(el);
+    });
+    modelSelect.value=selectedModelPath;
+    modelSelect.addEventListener("change",async()=>{
+      selectedModelPath=modelSelect.value;
+      await loadGlasses(selectedModelPath);
     });
   }
 
@@ -290,9 +311,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       await ensureDeps();
       initRenderer();
       fallback=createFallbackGlasses();
-      await loadGlasses();
-      if(!GLB_MODEL_PATH)setStatus("대기 중 (기본 프레임)");
-      else setStatus("대기 중");
+      setupModelSelect();
+      await loadGlasses(selectedModelPath);
+      setStatus("대기 중");
     }catch(err){
       console.error(err);
       setStatus("초기화 실패: 네트워크/스크립트 로드 확인 필요");
