@@ -77,7 +77,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
           <div class="tune-row"><span class="tune-name">Offset Y</span><input id="offsetYRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetYVal" class="tune-val">0</span></div>
           <div class="tune-row"><span class="tune-name">Offset Z</span><input id="offsetZRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetZVal" class="tune-val">0</span></div>
           <div class="tune-row"><span class="tune-name">Scale</span><input id="scaleRange" type="range" min="0.40" max="2.20" step="0.01"/><span id="scaleVal" class="tune-val">1</span></div>
-          <div class="tune-row"><span class="tune-name">RollGain</span><input id="rollGainRange" type="range" min="0" max="1.20" step="0.01"/><span id="rollGainVal" class="tune-val">0.55</span></div>
+          <div class="tune-row"><span class="tune-name">RollGain</span><input id="rollGainRange" type="range" min="0" max="1.20" step="0.01"/><span id="rollGainVal" class="tune-val">0.25</span></div>
         </div>
         <div class="ctrl" style="margin-top:8px"><button id="tuneResetBtn" class="ghost-btn" type="button">현재 모델 보정 초기화</button></div>
       </div>
@@ -143,7 +143,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     maxScale:2.4,
     yOffset:0,
     zOffset:0,
-    rollGain:0.55,
+    rollGain:0.25,
   };
 
   const modelTune={};
@@ -249,7 +249,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   const rollState={calibrating:true,samples:0,maxSamples:24,sum:0,bias:0,lastEyeRoll:0};
 
-  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null,rollCorrectQuat:null,rollEuler:null};
+  const fitState={initialized:false,position:null,quaternion:null,scale:1,targetQuaternion:null,rollCorrectQuat:null};
 
   function initRenderer(){
     renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
@@ -276,7 +276,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitState.quaternion=new THREE.Quaternion();
     fitState.targetQuaternion=new THREE.Quaternion();
     fitState.rollCorrectQuat=new THREE.Quaternion();
-    fitState.rollEuler=new THREE.Euler(0,0,0,"YXZ");
     modelRotQuat=new THREE.Quaternion();
 
     applyViewZoom();
@@ -335,28 +334,38 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function toSceneVec(p){ return new THREE.Vector3(p.x,-p.y,-p.z); }
 
   function getPose(points){
-    const left=points[234],right=points[454],nose=points[6],forehead=points[10],chin=points[152];
+    const left=points[234],right=points[454],nose=points[6],bridge=points[168],forehead=points[10],chin=points[152];
     const eyeL=points[33],eyeR=points[263];
-    if(!left||!right||!nose||!forehead||!chin||!eyeL||!eyeR)return null;
+    if(!left||!right||!nose||!bridge||!forehead||!chin||!eyeL||!eyeR)return null;
 
-    const rightVec=toSceneVec({x:right.x-left.x,y:right.y-left.y,z:right.z-left.z});
+    const rightVec=toSceneVec({x:eyeR.x-eyeL.x,y:eyeR.y-eyeL.y,z:eyeR.z-eyeL.z});
     const upHint=toSceneVec({x:forehead.x-chin.x,y:forehead.y-chin.y,z:forehead.z-chin.z});
     if(rightVec.lengthSq()<1e-8||upHint.lengthSq()<1e-8)return null;
 
     const xAxis=rightVec.normalize();
     const zAxis=new THREE.Vector3().crossVectors(xAxis,upHint).normalize();
     if(zAxis.lengthSq()<1e-8)return null;
+
+    const forwardHint=toSceneVec({x:nose.x-bridge.x,y:nose.y-bridge.y,z:nose.z-bridge.z}).normalize();
+    if(forwardHint.lengthSq()>1e-8&&zAxis.dot(forwardHint)<0)zAxis.multiplyScalar(-1);
+
     const yAxis=new THREE.Vector3().crossVectors(zAxis,xAxis).normalize();
 
     const basis=new THREE.Matrix4().makeBasis(xAxis,yAxis,zAxis);
     const quat=new THREE.Quaternion().setFromRotationMatrix(basis);
 
-    const pos=ndcToWorld(nose.x,nose.y);
+    const eyeCenterX=(eyeL.x+eyeR.x)*0.5;
+    const eyeCenterY=(eyeL.y+eyeR.y)*0.5;
+    const anchorX=bridge.x*0.55+eyeCenterX*0.35+nose.x*0.10;
+    const anchorY=bridge.y*0.55+eyeCenterY*0.35+nose.y*0.10;
+    const pos=ndcToWorld(anchorX,anchorY);
     pos.y+=FIT.yOffset;
     pos.z+=FIT.zOffset;
 
-    const eyeDist2d=Math.hypot(right.x-left.x,right.y-left.y);
-    const scale=THREE.MathUtils.clamp(eyeDist2d*FIT.scaleMul,FIT.minScale,FIT.maxScale);
+    const eyeDist2d=Math.hypot(eyeR.x-eyeL.x,eyeR.y-eyeL.y);
+    const faceWidth2d=Math.hypot(right.x-left.x,right.y-left.y);
+    const scaleSeed=eyeDist2d*0.72+faceWidth2d*0.28;
+    const scale=THREE.MathUtils.clamp(scaleSeed*FIT.scaleMul,FIT.minScale,FIT.maxScale);
     const eyeRoll=Math.atan2(eyeR.y-eyeL.y,eyeR.x-eyeL.x);
 
     return {position:pos,quaternion:quat,scale,eyeRoll};
@@ -394,9 +403,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }
 
     const correctedRoll=(pose.eyeRoll-rollState.bias)*FIT.rollGain;
-    fitState.rollEuler.setFromQuaternion(pose.quaternion,"YXZ");
-    fitState.rollEuler.z=-correctedRoll;
-    const correctedQuat=fitState.rollCorrectQuat.setFromEuler(fitState.rollEuler);
+    const correctedQuat=pose.quaternion.clone();
+    if(Math.abs(correctedRoll)>1e-6){
+      fitState.rollCorrectQuat.setFromAxisAngle(new THREE.Vector3(0,0,1),-correctedRoll);
+      correctedQuat.premultiply(fitState.rollCorrectQuat);
+    }
 
     if(!fitState.initialized){
       fitState.position.copy(pose.position);
@@ -652,4 +663,5 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
 
