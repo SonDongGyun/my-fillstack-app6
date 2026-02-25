@@ -125,7 +125,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     facemesh:["/static/vendor/face_mesh.js","https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"]
   };
 
-  const FRONTAL={yawDeg:8,pitchDeg:10,rollDeg:6,symmetryMin:0.88,scoreMin:0.72,lockFrames:10};
+  const FRONTAL={yawDeg:12,pitchDeg:14,rollDeg:10,symmetryMin:0.82,scoreMin:0.58,lockFrames:4};
 
   let faceMesh=null;
   let mpCam=null;
@@ -338,7 +338,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   function apply3D(pose){
     if(!glasses)return;
-    if(!pose||!frontalState.locked){
+    const canShow=!!pose&&(frontalState.locked||((pose.score||0)>=0.60));
+    if(!canShow){
       glasses.visible=false;
       smoothState.ready=false;
       return;
@@ -375,6 +376,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     glasses.visible=true;
     glasses.position.set(smoothState.px,smoothState.py-0.045+MODEL_BASE.offsetY,smoothState.pz+MODEL_BASE.offsetZ);
     glasses.quaternion.copy(smoothState.q);
+    if(modelBaseQuat)glasses.quaternion.multiply(modelBaseQuat);
     glasses.scale.setScalar(smoothState.sx);
   }
 
@@ -508,6 +510,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
