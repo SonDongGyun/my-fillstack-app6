@@ -227,7 +227,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     fitBaseline.bridgeX=median(fitBaseline.samples.map((s)=>s.bridgeX));
     fitBaseline.bridgeY=median(fitBaseline.samples.map((s)=>s.bridgeY));
     const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
-    fitBaseline.frameWorld=(fitBaseline.faceWidth*worldPerNdc*0.84)+(fitBaseline.eyeDist*worldPerNdc*0.16);
+    fitBaseline.frameWorld=(fitBaseline.faceWidth*worldPerNdc*1.08)+(fitBaseline.eyeDist*worldPerNdc*0.20);
     fitBaseline.ready=true;
     showCalib("개인 기준 생성 완료","피팅 적용을 시작합니다.",100);
     setTimeout(hideCalib,350);
@@ -244,9 +244,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const faceRatio=clamp((pose.faceWidth||baseFace)/baseFace,0.82,1.22);
     const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
     const pdWorld=pose.eyeDist*worldPerNdc;
-    const desiredFrameWorld=(fitBaseline.frameWorld*faceRatio*0.9)+(pdWorld*0.1);
+    const desiredFrameWorld=(fitBaseline.frameWorld*faceRatio*1.06)+(pdWorld*0.08);
     const modelNormWidth=(glasses.userData&&glasses.userData.normalizedWidth)||1.0;
-    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.42,1.2);
+    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.46,1.48);
     const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg), yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25, pitchRad=THREE.MathUtils.degToRad(clamp(pose.pitchDeg,-12,12))*0.22;
     const qFace=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitchRad,yawRad,rollRad,"YXZ"));
     if(!smoothState.ready){ smoothState.ready=true; smoothState.px=pos.x; smoothState.py=pos.y; smoothState.pz=pos.z; smoothState.sx=targetScale; smoothState.q=qFace.clone(); }
