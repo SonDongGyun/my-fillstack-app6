@@ -205,6 +205,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   }
 
   function collectCalibration(pose){
+    if(fitBaseline.ready){ hideCalib(); return; }
     if(!pose){
       fitBaseline.noFaceFrames++;
       const p=clamp((fitBaseline.noFaceFrames/CALIB.maxNoFaceFrames)*100,0,100);
@@ -316,3 +317,4 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
