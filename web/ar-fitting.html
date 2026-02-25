@@ -134,6 +134,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let scene=null;
   let cam3d=null;
   let glasses=null;
+  const modelBaseQuat=new THREE.Quaternion();
   let modelBaseQuat=null;
 
   const smoothState={ready:false,px:0,py:0,pz:0,sx:1,sy:1,sz:1,q:null};
@@ -214,13 +215,38 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     return new THREE.Vector3((nx-0.5)*2*halfW,-(ny-0.5)*2*halfH,0);
   }
 
+  function normalizeModelPivot(root){
+    if(!root||!window.THREE)return;
+    root.updateMatrixWorld(true);
+    const box=new THREE.Box3().setFromObject(root);
+    const size=new THREE.Vector3();
+    box.getSize(size);
+    const center=new THREE.Vector3();
+    box.getCenter(center);
+
+    const pivot=new THREE.Vector3(
+      center.x,
+      box.min.y+(size.y*0.56),
+      center.z
+    );
+
+    root.position.sub(pivot);
+    root.updateMatrixWorld(true);
+
+    const width=Math.max(size.x,size.z,1e-6);
+    const targetWidth=1.08;
+    const s=targetWidth/width;
+    root.scale.multiplyScalar(s);
+    root.updateMatrixWorld(true);
+  }
   async function loadModelC(){
     return new Promise((resolve,reject)=>{
       const loader=new THREE.GLTFLoader();
       loader.load(MODEL_PATH,(gltf)=>{
         glasses=gltf.scene;
         glasses.visible=false;
-        glasses.rotation.set(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll);
+        normalizeModelPivot(glasses);
+        modelBaseQuat.setFromEuler(new THREE.Euler(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll,"YXZ"));
         scene.add(glasses);
         resolve();
       },undefined,(err)=>reject(err));
@@ -276,7 +302,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       (symmetry>=FRONTAL.symmetryMin)&&
       (score>=FRONTAL.scoreMin);
 
-    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeMidX,eyeMidY,eyeDist};
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeMidX,eyeMidY,eyeDist,noseX,noseY};
   }
 
   function apply3D(pose){
@@ -287,7 +313,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       return;
     }
 
-    const pos=ndcToWorld(pose.eyeMidX,pose.eyeMidY+0.028);
+    const anchorX=(pose.noseX*0.62)+(pose.eyeMidX*0.38);
+    const anchorY=(pose.noseY*0.62)+(pose.eyeMidY*0.38)+0.01;
+    const pos=ndcToWorld(anchorX,anchorY);
     const eyeDistNdc=pose.eyeDist;
     const targetScale=clamp(eyeDistNdc*6.0,0.45,2.2)*MODEL_BASE.scale;
 
@@ -444,6 +472,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
