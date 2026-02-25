@@ -248,7 +248,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         glasses=gltf.scene;
         glasses.visible=false;
         normalizeModelPivot(glasses);
-        if(!modelBaseQuat)modelBaseQuat=new THREE.Quaternion();`n        modelBaseQuat.setFromEuler(new THREE.Euler(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll,"YXZ"));
+        if(!modelBaseQuat)modelBaseQuat=new THREE.Quaternion();
+        modelBaseQuat.setFromEuler(new THREE.Euler(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll,"YXZ"));
         scene.add(glasses);
         resolve();
       },undefined,(err)=>reject(err));
@@ -354,8 +355,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       frontalState.streak=0;
       frontalState.locked=false;
       setStatus("얼굴을 화면 중앙에 맞춰 주세요");
-      if(cacheTagEl)cacheTagEl.textContent=`캐시 태그: ${CACHE_TAG}`;
-      pdInfo.textContent=`정면 점수: 측정 전 | ${CACHE_TAG}`;
+      if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
+      pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
       return;
     }
 
@@ -461,9 +462,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       stopBtn.addEventListener("click",stop);
       recalibrateBtn.addEventListener("click",resetCalibration);
 
-      if(cacheTagEl)cacheTagEl.textContent=`캐시 태그: ${CACHE_TAG}`;
-      pdInfo.textContent=`정면 점수: 측정 전 | ${CACHE_TAG}`;
-      setStatus(`대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | ${CACHE_TAG}`);
+      if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
+      pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
+      setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | "+CACHE_TAG);
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
     }catch(err){
       setStatus("초기화 실패: 라이브러리/모델 로드를 확인해 주세요");
@@ -476,6 +477,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
