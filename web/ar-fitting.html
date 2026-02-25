@@ -133,7 +133,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let renderer=null;
   let scene=null;
   let cam3d=null;
-  let glasses=null;`n  let modelBaseQuat=null;
+  let glasses=null;
+  let modelBaseQuat=null;
 
   const smoothState={ready:false,px:0,py:0,pz:0,sx:1,sy:1,sz:1,q:null};
 
@@ -313,7 +314,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     }
 
     glasses.visible=true;
-    glasses.position.set(smoothState.px,smoothState.py+MODEL_BASE.offsetY,smoothState.pz+MODEL_BASE.offsetZ);
+    glasses.position.set(smoothState.px,smoothState.py-0.045+MODEL_BASE.offsetY,smoothState.pz+MODEL_BASE.offsetZ);
     glasses.quaternion.copy(smoothState.q);
     glasses.scale.setScalar(smoothState.sx);
   }
@@ -443,6 +444,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
