@@ -1,4 +1,4 @@
-﻿function stripHtml(value) {
+function stripHtml(value) {
   if (!value) return "";
   return String(value)
     .replace(/<[^>]*>/g, "")
@@ -51,24 +51,24 @@ function fallbackItems() {
   const now = new Date().toISOString();
   return [
     {
-      title: "다비치안경 공식 사이트",
-      summary: "뉴스 API 키가 없거나 호출이 실패해 기본 링크를 표시합니다.",
-      url: "https://www.davich.com/",
-      publisher: "Davich",
+      title: "젠틀몬스터 공식 사이트",
+      summary: "뉴스 API 키가 없거나 호출이 실패해 젠틀몬스터 기본 링크를 표시합니다.",
+      url: "https://www.gentlemonster.com/kr",
+      publisher: "Gentle Monster",
       published_at: now,
     },
     {
-      title: "다비치마켓",
-      summary: "최신 소식은 다비치마켓 공식 페이지에서 확인할 수 있습니다.",
-      url: "https://www.davichmarket.com/",
-      publisher: "Davich Market",
+      title: "젠틀몬스터 공식 사이트",
+      summary: "최신 소식은 젠틀몬스터 공식 페이지에서 확인할 수 있습니다.",
+      url: "https://www.gentlemonster.com/kr",
+      publisher: "Gentle Monster",
       published_at: now,
     },
     {
       title: "기업 소개",
       summary: "기업 및 브랜드 소개 페이지입니다.",
-      url: "https://davich.com/about/information",
-      publisher: "Davich",
+      url: "https://www.gentlemonster.com/kr",
+      publisher: "Gentle Monster",
       published_at: now,
     },
   ];
@@ -86,7 +86,7 @@ module.exports = async function handler(req, res) {
   }
 
   const params = new URLSearchParams({
-    query: "다비치안경",
+    query: "젠틀몬스터 안경",
     display: "10",
     start: "1",
     sort: "date",
@@ -109,7 +109,7 @@ module.exports = async function handler(req, res) {
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
 
     const items = rawItems.slice(0, 3).map((item) => {
-      const url = item.originallink || item.link || "https://www.davich.com/";
+      const url = item.originallink || item.link || "https://www.gentlemonster.com/kr";
       return {
         title: stripHtml(item.title) || "제목 없음",
         summary: stripHtml(item.description) || "요약 정보가 없습니다.",

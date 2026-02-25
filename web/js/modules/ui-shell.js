@@ -131,14 +131,14 @@
       const ua=navigator.userAgent||"";
       const isiOS=/iPhone|iPad|iPod/i.test(ua),isAndroid=/Android/i.test(ua);
       if(isiOS){
-        marketAppLink.href="itms-apps://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93";
-        marketAppLink.textContent="다비치마켓 앱 바로가기 (App Store)";
+        marketAppLink.href="https://www.gentlemonster.com/kr";
+        marketAppLink.textContent="젠틀몬스터 공식 사이트 바로가기";
       }else if(isAndroid){
-        marketAppLink.href="market://search?q=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93";
-        marketAppLink.textContent="다비치마켓 앱 바로가기 (Play 스토어)";
+        marketAppLink.href="https://www.gentlemonster.com/kr";
+        marketAppLink.textContent="젠틀몬스터 공식 사이트 바로가기";
       }else{
-        marketAppLink.href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93";
-        marketAppLink.textContent="다비치마켓 앱 바로가기";
+        marketAppLink.href="https://www.gentlemonster.com/kr";
+        marketAppLink.textContent="젠틀몬스터 공식 사이트 바로가기";
       }
     }
 

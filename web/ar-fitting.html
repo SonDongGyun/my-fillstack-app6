@@ -6,7 +6,7 @@
 <title>안경 AR 가상 피팅 | 눈건강 시력지킴이</title>
 <meta name="description" content="카메라 얼굴 인식 기반 3D 안경 AR 가상 피팅" />
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-<link rel="apple-touch-icon" href="/static/favicon.svg" />
+<link rel="apple-touch-icon" href="/static/davich_logo.png" />
 <style>
 :root{--b900:#0b3d91;--b700:#1459c2;--b500:#2e7be8;--line:#cfe3ff;--ink:#112a4a;--muted:#45658d}
 *{box-sizing:border-box}
@@ -44,21 +44,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 .calib-fill{height:100%;width:0%;background:linear-gradient(120deg,#1459c2,#2e7be8);transition:width .2s ease}
 .calib-meta{margin-top:7px;color:#45658d;font-size:.8rem;font-weight:700}
 @media (max-width:920px){.layout{grid-template-columns:1fr}.viewer{aspect-ratio:3/4}body{padding:10px}.app{padding:12px}}
-
-/* Gentle Monster theme override */
-:root{--b900:#0f0f0f;--b700:#1a1a1a;--b500:#2a2a2a;--line:#dedede;--ink:#131313;--muted:#666}
-body{font-family:"Pretendard Variable","SUIT Variable","Noto Sans KR",sans-serif;background:radial-gradient(1200px 700px at 18% -16%,#ffffff 0%,#f4f4f4 44%,#ececec 100%),linear-gradient(180deg,#fafafa 0%,#efefef 100%)}
-.app{border-color:#dcdcdc;background:#ffffffeb;box-shadow:0 16px 34px rgba(0,0,0,.09)}
-.title,.side h2,.calib-title{color:#111 !important}
-.sub,.note,.status,.select-label,.calib-desc,.calib-meta{color:#666 !important}
-.side,.viewer,.select,.calib-card,.calib-bar{border-color:#dcdcdc !important}
-.side,.calib-card{background:#fff !important}
-.primary-btn{background:#111 !important;color:#fff !important;border:1px solid #111 !important}
-.ghost-btn,.secondary-btn{background:#fff !important;color:#111 !important;border:1px solid #d2d2d2 !important}
-.ghost-btn:hover,.secondary-btn:hover{background:#f5f5f5 !important;border-color:#bfbfbf !important}
-.scroll-cta.is-docked{background:rgba(255,255,255,.98) !important;color:#111 !important;border-color:#d1d1d1 !important;box-shadow:0 8px 20px rgba(0,0,0,.11) !important}
-.calib-overlay{background:linear-gradient(180deg,#1b1b1bcc,#111111b8)}
-.calib-fill{background:linear-gradient(120deg,#111,#2a2a2a)}
 </style>
 </head>
 <body>
