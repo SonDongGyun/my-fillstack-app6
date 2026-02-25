@@ -69,29 +69,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
-      <div class="note" id="pdInfo">AI PD: 측정 전</div>
-      <div class="select-wrap" id="stylePanel">
-        <label class="select-label">스타일 시뮬레이션</label>
-        <div class="tune-grid">
-          <div class="tune-row"><span class="tune-name">Frame</span><input id="frameColorInput" type="color" value="#111111"/><span id="frameColorVal" class="tune-val">#111111</span></div>
-          <div class="tune-row"><span class="tune-name">Lens Tint</span><input id="lensTintRange" type="range" min="0" max="100" step="1"/><span id="lensTintVal" class="tune-val">32%</span></div>
-          <div class="tune-row"><span class="tune-name">Gloss</span><input id="glossRange" type="range" min="0" max="100" step="1"/><span id="glossVal" class="tune-val">58%</span></div>
-        </div>
-      </div>
-      <div class="select-wrap" id="tunePanel">
-        <label class="select-label">모델 미세 보정</label>
-        <div class="tune-grid">
-          <div class="tune-row"><span class="tune-name">Yaw</span><input id="yawRange" type="range" min="-180" max="180" step="1"/><span id="yawVal" class="tune-val">0</span></div>
-          <div class="tune-row"><span class="tune-name">Pitch</span><input id="pitchRange" type="range" min="-90" max="90" step="1"/><span id="pitchVal" class="tune-val">0</span></div>
-          <div class="tune-row"><span class="tune-name">Roll</span><input id="rollRange" type="range" min="-180" max="180" step="1"/><span id="rollVal" class="tune-val">0</span></div>
-          <div class="tune-row"><span class="tune-name">Offset Y</span><input id="offsetYRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetYVal" class="tune-val">0</span></div>
-          <div class="tune-row"><span class="tune-name">Offset Z</span><input id="offsetZRange" type="range" min="-0.30" max="0.30" step="0.005"/><span id="offsetZVal" class="tune-val">0</span></div>
-          <div class="tune-row"><span class="tune-name">Scale</span><input id="scaleRange" type="range" min="0.40" max="2.20" step="0.01"/><span id="scaleVal" class="tune-val">1</span></div>
-          
-        </div>
-        <div class="ctrl" style="margin-top:8px"><button id="tuneResetBtn" class="ghost-btn" type="button">현재 모델 보정 초기화</button></div>
-      </div>
-      <div class="note">A/B/C 각각 다른 보정값으로 저장됩니다(브라우저 로컬 저장).</div>
+      <div class="note" id="pdInfo">AI PD: 측정 전</div>
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -110,6 +88,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const zoomInBtn=document.getElementById("zoomInBtn");
   const modelSelect=document.getElementById("modelSelect");
   const tunePanel=document.getElementById("tunePanel");
+  const stylePanel=document.getElementById("stylePanel");
   const status=document.getElementById("status");
   const pdInfo=document.getElementById("pdInfo");
   const cacheTagEl=document.getElementById("cacheTag");
@@ -400,7 +379,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       frontalState.locked=false;
       setStatus("얼굴 미검출: 얼굴을 화면 중앙에 맞춰 주세요");
       updateCacheUI();
-      pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
+      pdInfo.textContent="정면 점수: 측정 전";
       return;
     }
 
@@ -511,7 +490,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       recalibrateBtn.addEventListener("click",resetCalibration);
 
       updateCacheUI();
-      pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
+      pdInfo.textContent="정면 점수: 측정 전";
       setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | "+CACHE_TAG);
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
     }catch(err){
@@ -525,6 +504,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
