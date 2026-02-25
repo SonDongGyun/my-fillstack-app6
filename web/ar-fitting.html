@@ -131,6 +131,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let mpCam=null;
   let pipelineReady=false;
   let running=false;
+  let mpAssetBase="/static/vendor/";
+  let lastSendErr="";
   let viewZoom=1;
 
   let renderer=null;
@@ -147,6 +149,18 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function setStatus(txt){ status.textContent=txt; }
   function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
+  async function resolveMediapipeAssetBase(){
+    const local="/static/vendor/";
+    const cdn="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/";
+    try{
+      const probe=await fetch(local+"face_mesh_solution_packed_assets.data",{method:"HEAD",cache:"no-store"});
+      if(probe.ok){
+        mpAssetBase=local;
+        return;
+      }
+    }catch(_){ }
+    mpAssetBase=cdn;
+  }
   function updateCacheUI(){
     if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
   }
@@ -412,7 +426,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function ensurePipeline(){
     if(pipelineReady)return;
 
-    faceMesh=new FaceMesh({locateFile:(f)=>`/static/vendor/${f}`});
+    faceMesh=new FaceMesh({locateFile:(f)=>`${mpAssetBase}${f}`});
     faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.35,minTrackingConfidence:0.35});
     faceMesh.onResults((results)=>{
       const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
@@ -482,6 +496,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   async function boot(){
     try{
       await ensureDeps();
+      await resolveMediapipeAssetBase();
       initRenderer();
       await loadModelC();
       applyViewZoom();
@@ -510,6 +525,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
