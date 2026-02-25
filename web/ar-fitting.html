@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
@@ -133,7 +133,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let renderer=null;
   let scene=null;
   let cam3d=null;
-  let glasses=null;
+  let glasses=null;`n  let modelBaseQuat=null;
 
   const smoothState={ready:false,px:0,py:0,pz:0,sx:1,sy:1,sz:1,q:null};
 
@@ -286,7 +286,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       return;
     }
 
-    const pos=ndcToWorld(pose.eyeMidX,pose.eyeMidY);
+    const pos=ndcToWorld(pose.eyeMidX,pose.eyeMidY+0.028);
     const eyeDistNdc=pose.eyeDist;
     const targetScale=clamp(eyeDistNdc*6.0,0.45,2.2)*MODEL_BASE.scale;
 
@@ -443,6 +443,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
 
 
 
