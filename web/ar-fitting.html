@@ -115,7 +115,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const cacheTagEl=document.getElementById("cacheTag");
 
   const MODEL_PATH="/static/models/model_c.glb";
-  const CACHE_TAG="ar-fit-cache-20260225-01";
+  let CACHE_TAG="deploy-pending";
   const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.95};
 
   const LIB_SOURCES={
@@ -147,6 +147,34 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function setStatus(txt){ status.textContent=txt; }
   function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
+  function updateCacheUI(){
+    if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
+  }
+
+  async function resolveDeployTag(){
+    try{
+      const url=window.location.pathname+"?deploy_check="+Date.now();
+      const res=await fetch(url,{cache:"no-store"});
+      const vercelId=res.headers.get("x-vercel-id");
+      const etag=res.headers.get("etag");
+      const lastModified=res.headers.get("last-modified");
+      if(vercelId&&vercelId.trim()){
+        CACHE_TAG="vercel:"+vercelId.trim();
+        return;
+      }
+      if(etag&&etag.trim()){
+        CACHE_TAG="etag:"+etag.replace(/\"/g,"").trim();
+        return;
+      }
+      if(lastModified&&lastModified.trim()){
+        CACHE_TAG="lm:"+lastModified.trim();
+        return;
+      }
+      CACHE_TAG="runtime:"+new Date().toISOString();
+    }catch(_){
+      CACHE_TAG="runtime:"+new Date().toISOString();
+    }
+  }
   function loadScript(src){
     return new Promise((resolve,reject)=>{
       const s=document.createElement("script");
@@ -355,7 +383,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       frontalState.streak=0;
       frontalState.locked=false;
       setStatus("얼굴을 화면 중앙에 맞춰 주세요");
-      if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
+      updateCacheUI();
       pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
       return;
     }
@@ -458,11 +486,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setupZoomControls();
       disableUnusedControls();
 
+      await resolveDeployTag();
+      updateCacheUI();
+
       startBtn.addEventListener("click",start);
       stopBtn.addEventListener("click",stop);
       recalibrateBtn.addEventListener("click",resetCalibration);
 
-      if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
+      updateCacheUI();
       pdInfo.textContent="정면 점수: 측정 전 | "+CACHE_TAG;
       setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | "+CACHE_TAG);
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
@@ -477,6 +508,12 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
+
+
+
+
 
 
 
