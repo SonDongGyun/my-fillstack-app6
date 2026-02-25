@@ -263,9 +263,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     root.updateMatrixWorld(true);
 
     const width=Math.max(size.x,size.z,1e-6);
-    const targetWidth=1.08;
-    const s=targetWidth/width;
+    const normalizedWidth=1.0;
+    const s=normalizedWidth/width;
     root.scale.multiplyScalar(s);
+    root.userData.normalizedWidth=normalizedWidth;
     root.updateMatrixWorld(true);
   }
   async function loadModelC(){
@@ -355,9 +356,14 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const pos=ndcToWorld(anchorX,anchorY);
     const eyeDistNdc=pose.eyeDist;
     const faceWidthNdc=Math.max(pose.faceWidth||0,eyeDistNdc*1.95);
-    const widthScale=clamp(faceWidthNdc*3.2,0.58,1.95);
-    const pdScale=clamp(eyeDistNdc*4.6,0.48,1.58);
-    const targetScale=((widthScale*0.74)+(pdScale*0.26))*MODEL_BASE.scale;
+    const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
+    const halfW=halfH*cam3d.aspect;
+    const worldPerNdc=2*halfW;
+    const faceWorldWidth=faceWidthNdc*worldPerNdc;
+    const pdWorld=eyeDistNdc*worldPerNdc;
+    const desiredFrameWorld=(faceWorldWidth*0.86)+(pdWorld*0.14);
+    const modelNormWidth=(glasses.userData&&glasses.userData.normalizedWidth)||1.0;
+    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.46,1.35);
 
     const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg);
     const yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25;
