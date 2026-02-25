@@ -32,14 +32,18 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 .select-wrap{margin:10px 0 12px}
 .select-label{display:block;margin:0 0 6px;font-size:.84rem;color:#3b5f8c;font-weight:700}
 .select{width:100%;border:1px solid #cfe2ff;border-radius:10px;background:#fff;padding:10px 11px;font-size:.92rem;color:#224061}
-.tune-grid{display:grid;gap:8px;margin-top:6px}
-.tune-row{display:grid;grid-template-columns:82px 1fr 52px;gap:8px;align-items:center}
-.tune-name{font-size:.8rem;color:#355985;font-weight:700}
-.tune-val{font-size:.78rem;color:#355985;text-align:right}
-.tune-row input[type="range"]{width:100%}
 .note{color:#325780;font-size:.88rem;line-height:1.6}
 .status{margin-top:8px;font-size:.88rem;color:#45658d;min-height:1.2rem}
-@media (max-width:920px){.layout{grid-template-columns:1fr} .viewer{aspect-ratio:3/4} body{padding:10px}.app{padding:12px}}
+.calib-overlay{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(180deg,#0c2850b3,#0c285088);backdrop-filter:blur(2px)}
+.calib-overlay.hidden{display:none}
+.calib-card{width:min(360px,92%);border:1px solid #cfe2ff;border-radius:14px;background:#ffffffef;padding:14px 12px;box-shadow:0 12px 24px #00000024;text-align:center}
+.calib-title{margin:0;color:#164f9f;font-size:.98rem;font-weight:800}
+.calib-desc{margin:6px 0 10px;color:#355985;font-size:.86rem;line-height:1.5}
+.calib-gif{width:56px;height:56px;display:block;margin:0 auto 10px}
+.calib-bar{height:10px;border-radius:999px;background:#e9f2ff;overflow:hidden;border:1px solid #d2e5ff}
+.calib-fill{height:100%;width:0%;background:linear-gradient(120deg,#1459c2,#2e7be8);transition:width .2s ease}
+.calib-meta{margin-top:7px;color:#45658d;font-size:.8rem;font-weight:700}
+@media (max-width:920px){.layout{grid-template-columns:1fr}.viewer{aspect-ratio:3/4}body{padding:10px}.app{padding:12px}}
 </style>
 </head>
 <body>
@@ -47,7 +51,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   <section class="head">
     <div>
       <h1 class="title">안경 AR 가상 피팅</h1>
-      <p class="sub">모델별 미세 보정을 실시간으로 조절해 정렬을 맞출 수 있습니다.</p>
+      <p class="sub">초기 얼굴 스캔 후 개인 맞춤 기준으로 3D 피팅을 적용합니다.</p>
       <p class="sub" id="cacheTag" style="font-weight:700;color:#1d5eb4">캐시 태그: ar-fit-cache-20260225-01</p>
     </div>
     <button id="backHomeBtn" class="ghost-btn scroll-cta" data-scroll-cta="game" type="button">운동 메뉴로</button>
@@ -58,6 +62,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     <div class="viewer">
       <video id="video" autoplay playsinline muted></video>
       <canvas id="arCanvas"></canvas>
+      <div id="calibOverlay" class="calib-overlay hidden">
+        <div class="calib-card">
+          <h3 id="calibTitle" class="calib-title">초기 얼굴 스캔 준비</h3>
+          <img class="calib-gif" src="/static/loading-scan.gif" alt="로딩" />
+          <p id="calibDesc" class="calib-desc">정면을 유지하면 개인 맞춤 기준을 생성합니다.</p>
+          <div class="calib-bar"><div id="calibFill" class="calib-fill"></div></div>
+          <div id="calibMeta" class="calib-meta">0%</div>
+        </div>
+      </div>
     </div>
     <aside class="side">
       <h2>피팅 컨트롤</h2>
@@ -76,7 +89,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <select id="modelSelect" class="select"></select>
       </div>
       <div class="note" id="pdInfo">정면 점수: 측정 전</div>
-
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -98,10 +110,17 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const pdInfo=document.getElementById("pdInfo");
   const cacheTagEl=document.getElementById("cacheTag");
   const backHomeBtn=document.getElementById("backHomeBtn");
+  const calibOverlay=document.getElementById("calibOverlay");
+  const calibTitle=document.getElementById("calibTitle");
+  const calibDesc=document.getElementById("calibDesc");
+  const calibFill=document.getElementById("calibFill");
+  const calibMeta=document.getElementById("calibMeta");
 
   const MODEL_PATH="/static/models/model_c.glb";
   let CACHE_TAG="deploy-pending";
-  const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.88};
+  const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.86};
+  const FRONTAL={yawDeg:14,pitchDeg:16,rollDeg:11,symmetryMin:0.75,scoreMin:0.5,lockFrames:4};
+  const CALIB={samplesNeeded:42,maxNoFaceFrames:45,minFrontalScore:0.5,minSymmetry:0.75};
 
   const LIB_SOURCES={
     three:["/static/vendor/three.min.js","https://cdn.jsdelivr.net/npm/three/build/three.min.js"],
@@ -110,337 +129,160 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     facemesh:["/static/vendor/face_mesh.js","https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"]
   };
 
-  const FRONTAL={yawDeg:12,pitchDeg:14,rollDeg:10,symmetryMin:0.82,scoreMin:0.58,lockFrames:4};
-
-  let faceMesh=null;
-  let mpCam=null;
-  let pipelineReady=false;
-  let running=false;
-  let mpAssetBase="/static/vendor/";
-  let lastSendErr="";
-  let viewZoom=1;
-
-  let renderer=null;
-  let scene=null;
-  let cam3d=null;
-  let glasses=null;
-  let modelBaseQuat=null;
-
-  const smoothState={ready:false,px:0,py:0,pz:0,sx:1,sy:1,sz:1,q:null};
-
-  const baseline={ready:false,collecting:true,samples:[],needed:20,xRatio:0,yRatio:0};
+  let faceMesh=null, mpCam=null, pipelineReady=false, running=false, mpAssetBase="/static/vendor/", viewZoom=1;
+  let renderer=null, scene=null, cam3d=null, glasses=null, modelBaseQuat=null;
+  const smoothState={ready:false,px:0,py:0,pz:0,sx:1,q:null};
   const frontalState={streak:0,locked:false};
+  const fitBaseline={ready:false,samples:[],noFaceFrames:0,faceWidth:0,eyeDist:0,bridgeX:0,bridgeY:0,frameWorld:0};
 
-  function setStatus(txt){ status.textContent=txt; }
-  function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const median=(arr)=>{ if(!arr||arr.length===0)return 0; const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length*0.5); return s.length%2?s[m]:(s[m-1]+s[m])*0.5; };
+  const setStatus=(txt)=>{ status.textContent=txt; };
+
+  function showCalib(title,desc,pct){
+    calibOverlay.classList.remove("hidden");
+    calibTitle.textContent=title;
+    calibDesc.textContent=desc;
+    const p=Math.round(clamp(pct||0,0,100));
+    calibFill.style.width=`${p}%`;
+    calibMeta.textContent=`${p}%`;
+  }
+  function hideCalib(){ calibOverlay.classList.add("hidden"); }
+  function resetFitBaseline(){
+    fitBaseline.ready=false; fitBaseline.samples=[]; fitBaseline.noFaceFrames=0;
+    fitBaseline.faceWidth=0; fitBaseline.eyeDist=0; fitBaseline.bridgeX=0; fitBaseline.bridgeY=0; fitBaseline.frameWorld=0;
+  }
 
   async function resolveMediapipeAssetBase(){
-    const local="/static/vendor/";
-    const cdn="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/";
-    try{
-      const probe=await fetch(local+"face_mesh_solution_packed_assets.data",{method:"HEAD",cache:"no-store"});
-      if(probe.ok){
-        mpAssetBase=local;
-        return;
-      }
-    }catch(_){ }
-    mpAssetBase=cdn;
+    try{ const r=await fetch("/static/vendor/face_mesh_solution_packed_assets.data",{method:"HEAD",cache:"no-store"}); mpAssetBase=r.ok?"/static/vendor/":"https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/"; }
+    catch(_){ mpAssetBase="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/"; }
   }
-  function updateCacheUI(){
-    if(cacheTagEl)cacheTagEl.textContent="캐시 태그: "+CACHE_TAG;
-  }
-
+  function updateCacheUI(){ cacheTagEl.textContent="캐시 태그: "+CACHE_TAG; }
   async function resolveDeployTag(){
     try{
-      const url=window.location.pathname+"?deploy_check="+Date.now();
-      const res=await fetch(url,{cache:"no-store"});
-      const vercelId=res.headers.get("x-vercel-id");
-      const etag=res.headers.get("etag");
-      const lastModified=res.headers.get("last-modified");
-      if(vercelId&&vercelId.trim()){
-        CACHE_TAG="vercel:"+vercelId.trim();
-        return;
-      }
-      if(etag&&etag.trim()){
-        CACHE_TAG="etag:"+etag.replace(/\"/g,"").trim();
-        return;
-      }
-      if(lastModified&&lastModified.trim()){
-        CACHE_TAG="lm:"+lastModified.trim();
-        return;
-      }
-      CACHE_TAG="runtime:"+new Date().toISOString();
-    }catch(_){
-      CACHE_TAG="runtime:"+new Date().toISOString();
-    }
-  }
-  function loadScript(src){
-    return new Promise((resolve,reject)=>{
-      const s=document.createElement("script");
-      s.src=src;
-      s.async=true;
-      s.onload=()=>resolve(src);
-      s.onerror=()=>reject(new Error(`load failed: ${src}`));
-      document.head.appendChild(s);
-    });
+      const res=await fetch(window.location.pathname+"?deploy_check="+Date.now(),{cache:"no-store"});
+      const v=res.headers.get("x-vercel-id"); const e=res.headers.get("etag");
+      CACHE_TAG=v&&v.trim()?"vercel:"+v.trim():(e&&e.trim()?"etag:"+e.replace(/\"/g,"").trim():"runtime:"+new Date().toISOString());
+    }catch(_){ CACHE_TAG="runtime:"+new Date().toISOString(); }
   }
 
-  async function loadFromAny(urls){
-    let lastErr=null;
-    for(const url of urls){
-      try{ await loadScript(url); return; }
-      catch(err){ lastErr=err; }
-    }
-    throw lastErr||new Error("script load failed");
-  }
+  function loadScript(src){ return new Promise((resolve,reject)=>{ const s=document.createElement("script"); s.src=src; s.async=true; s.onload=()=>resolve(src); s.onerror=()=>reject(new Error(`load failed: ${src}`)); document.head.appendChild(s); }); }
+  async function loadFromAny(urls){ let err=null; for(const u of urls){ try{ await loadScript(u); return; }catch(e){ err=e; } } throw err||new Error("script load failed"); }
+  async function ensureDeps(){ if(typeof window.THREE==="undefined")await loadFromAny(LIB_SOURCES.three); if(typeof window.THREE.GLTFLoader==="undefined")await loadFromAny(LIB_SOURCES.gltf); if(typeof window.Camera==="undefined")await loadFromAny(LIB_SOURCES.camera); if(typeof window.FaceMesh==="undefined")await loadFromAny(LIB_SOURCES.facemesh); }
 
-  async function ensureDeps(){
-    if(typeof window.THREE==="undefined")await loadFromAny(LIB_SOURCES.three);
-    if(typeof window.THREE.GLTFLoader==="undefined")await loadFromAny(LIB_SOURCES.gltf);
-    if(typeof window.Camera==="undefined")await loadFromAny(LIB_SOURCES.camera);
-    if(typeof window.FaceMesh==="undefined")await loadFromAny(LIB_SOURCES.facemesh);
-    if(typeof window.THREE==="undefined"||typeof window.FaceMesh==="undefined"||typeof window.Camera==="undefined")throw new Error("deps load failed");
-  }
-
-  function applyViewZoom(){
-    const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`;
-    video.style.transform=t;
-    canvas.style.transform=t;
-  }
-
-  function median(arr){
-    if(!arr||arr.length===0)return 0;
-    const sorted=[...arr].sort((a,b)=>a-b);
-    const m=Math.floor(sorted.length*0.5);
-    return sorted.length%2?sorted[m]:(sorted[m-1]+sorted[m])*0.5;
-  }
+  function applyViewZoom(){ const t=`scaleX(-1) scale(${viewZoom.toFixed(2)})`; video.style.transform=t; canvas.style.transform=t; }
+  function ndcToWorld(nx,ny){ const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z; const hw=hh*cam3d.aspect; return new THREE.Vector3((nx-0.5)*2*hw,-(ny-0.5)*2*hh,0); }
 
   function initRenderer(){
-    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-    scene=new THREE.Scene();
-    cam3d=new THREE.PerspectiveCamera(45,1,0.1,100);
-    cam3d.position.set(0,0,3.2);
-
-    scene.add(new THREE.AmbientLight(0xffffff,1.08));
-    const keyLight=new THREE.DirectionalLight(0xffffff,0.92);
-    keyLight.position.set(0.2,1.8,2.2);
-    scene.add(keyLight);
-
-    const resize=()=>{
-      const w=canvas.clientWidth||640;
-      const h=canvas.clientHeight||480;
-      renderer.setSize(w,h,false);
-      cam3d.aspect=w/h;
-      cam3d.updateProjectionMatrix();
-    };
-    window.addEventListener("resize",resize);
-    resize();
+    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true}); renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    scene=new THREE.Scene(); cam3d=new THREE.PerspectiveCamera(45,1,0.1,100); cam3d.position.set(0,0,3.2);
+    scene.add(new THREE.AmbientLight(0xffffff,1.08)); const key=new THREE.DirectionalLight(0xffffff,0.92); key.position.set(0.2,1.8,2.2); scene.add(key);
+    const resize=()=>{ const w=canvas.clientWidth||640, h=canvas.clientHeight||480; renderer.setSize(w,h,false); cam3d.aspect=w/h; cam3d.updateProjectionMatrix(); };
+    window.addEventListener("resize",resize); resize();
   }
-
-  function ndcToWorld(nx,ny){
-    const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
-    const halfW=halfH*cam3d.aspect;
-    return new THREE.Vector3((nx-0.5)*2*halfW,-(ny-0.5)*2*halfH,0);
-  }
-
   function normalizeModelPivot(root){
-    if(!root||!window.THREE)return;
     root.updateMatrixWorld(true);
-    const box=new THREE.Box3().setFromObject(root);
-    const size=new THREE.Vector3();
-    box.getSize(size);
-    const center=new THREE.Vector3();
-    box.getCenter(center);
-
-    const pivot=new THREE.Vector3(
-      center.x,
-      box.min.y+(size.y*0.56),
-      center.z
-    );
-
-    root.position.sub(pivot);
-    root.updateMatrixWorld(true);
-
-    const width=Math.max(size.x,size.z,1e-6);
-    const normalizedWidth=1.0;
-    const s=normalizedWidth/width;
-    root.scale.multiplyScalar(s);
-    root.userData.normalizedWidth=normalizedWidth;
-    root.updateMatrixWorld(true);
+    const box=new THREE.Box3().setFromObject(root); const size=new THREE.Vector3(); box.getSize(size); const center=new THREE.Vector3(); box.getCenter(center);
+    const pivot=new THREE.Vector3(center.x,box.min.y+(size.y*0.56),center.z); root.position.sub(pivot); root.updateMatrixWorld(true);
+    const width=Math.max(size.x,size.z,1e-6); const s=1.0/width; root.scale.multiplyScalar(s); root.userData.normalizedWidth=1.0; root.updateMatrixWorld(true);
   }
-  async function loadModelC(){
-    return new Promise((resolve,reject)=>{
-      const loader=new THREE.GLTFLoader();
-      loader.load(MODEL_PATH,(gltf)=>{
-        glasses=gltf.scene;
-        glasses.visible=false;
-        normalizeModelPivot(glasses);
-        if(!modelBaseQuat)modelBaseQuat=new THREE.Quaternion();
-        modelBaseQuat.setFromEuler(new THREE.Euler(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll,"YXZ"));
-        scene.add(glasses);
-        resolve();
-      },undefined,(err)=>reject(err));
-    });
-  }
+  async function loadModelC(){ return new Promise((resolve,reject)=>{ const loader=new THREE.GLTFLoader(); loader.load(MODEL_PATH,(g)=>{ glasses=g.scene; glasses.visible=false; normalizeModelPivot(glasses); modelBaseQuat=new THREE.Quaternion().setFromEuler(new THREE.Euler(MODEL_BASE.pitch,MODEL_BASE.yaw,MODEL_BASE.roll,"YXZ")); scene.add(glasses); resolve(); },undefined,reject); }); }
 
   function calcPose(pts){
-    const eyeL=pts[33],eyeR=pts[263],nose=pts[1]||pts[6];
-    if(!eyeL||!eyeR||!nose)return null;
-
-    const eyeDx=eyeR.x-eyeL.x;
-    const eyeDy=eyeR.y-eyeL.y;
-    const eyeDist=Math.hypot(eyeDx,eyeDy);
-    if(eyeDist<1e-5)return null;
-
-    const eyeMidX=(eyeL.x+eyeR.x)*0.5;
-    const eyeMidY=(eyeL.y+eyeR.y)*0.5;
-
-    const xRatio=(nose.x-eyeMidX)/eyeDist;
-    const yRatio=(nose.y-eyeMidY)/eyeDist;
-    const noseX=nose.x;
-    const noseY=nose.y;
-
-    const faceL=pts[234]||pts[93]||eyeL;
-    const faceR=pts[454]||pts[323]||eyeR;
-    const faceWidth=Math.hypot(faceR.x-faceL.x,faceR.y-faceL.y);
-
-    if(baseline.collecting){
-      baseline.samples.push({xRatio,yRatio});
-      if(baseline.samples.length>=baseline.needed){
-        baseline.xRatio=median(baseline.samples.map((s)=>s.xRatio));
-        baseline.yRatio=median(baseline.samples.map((s)=>s.yRatio));
-        baseline.ready=true;
-        baseline.collecting=false;
-        setStatus("기준 캘리브레이션 완료");
-      }
-    }
-
-    const baseX=baseline.ready?baseline.xRatio:xRatio;
-    const baseY=baseline.ready?baseline.yRatio:yRatio;
-
-    const yawDeg=clamp((xRatio-baseX)*120,-45,45);
-    const pitchDeg=clamp((yRatio-baseY)*120,-45,45);
+    const eyeL=pts[33], eyeR=pts[263], nose=pts[1]||pts[6]; if(!eyeL||!eyeR||!nose)return null;
+    const eyeDx=eyeR.x-eyeL.x, eyeDy=eyeR.y-eyeL.y; const eyeDist=Math.hypot(eyeDx,eyeDy); if(eyeDist<1e-5)return null;
+    const eyeMidX=(eyeL.x+eyeR.x)*0.5, eyeMidY=(eyeL.y+eyeR.y)*0.5;
+    const faceL=pts[234]||pts[93]||eyeL, faceR=pts[454]||pts[323]||eyeR; const faceWidth=Math.hypot(faceR.x-faceL.x,faceR.y-faceL.y);
+    const bridge=pts[168]||pts[6]||nose;
+    const yawDeg=clamp(((nose.x-eyeMidX)/eyeDist)*92,-45,45);
+    const pitchDeg=clamp(((nose.y-eyeMidY)/eyeDist)*92,-45,45);
     const rollDeg=clamp(Math.atan2(eyeDy,eyeDx)*180/Math.PI,-45,45);
-
-    const dL=Math.hypot(nose.x-eyeL.x,nose.y-eyeL.y);
-    const dR=Math.hypot(nose.x-eyeR.x,nose.y-eyeR.y);
+    const dL=Math.hypot(nose.x-eyeL.x,nose.y-eyeL.y), dR=Math.hypot(nose.x-eyeR.x,nose.y-eyeR.y);
     const symmetry=1-(Math.abs(dL-dR)/(dL+dR+1e-6));
+    const yawScore=1-clamp(Math.abs(yawDeg)/FRONTAL.yawDeg,0,1), pitchScore=1-clamp(Math.abs(pitchDeg)/FRONTAL.pitchDeg,0,1), rollScore=1-clamp(Math.abs(rollDeg)/FRONTAL.rollDeg,0,1), symScore=clamp((symmetry-FRONTAL.symmetryMin)/(1-FRONTAL.symmetryMin),0,1);
+    const score=(yawScore*0.35)+(pitchScore*0.2)+(rollScore*0.25)+(symScore*0.2);
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal:score>=FRONTAL.scoreMin,eyeMidX,eyeMidY,eyeDist,faceWidth,bridgeX:bridge.x,bridgeY:bridge.y};
+  }
 
-    const yawScore=1-clamp(Math.abs(yawDeg)/FRONTAL.yawDeg,0,1);
-    const pitchScore=1-clamp(Math.abs(pitchDeg)/FRONTAL.pitchDeg,0,1);
-    const rollScore=1-clamp(Math.abs(rollDeg)/FRONTAL.rollDeg,0,1);
-    const symScore=clamp((symmetry-FRONTAL.symmetryMin)/(1-FRONTAL.symmetryMin),0,1);
-    const score=(yawScore*0.35)+(pitchScore*0.20)+(rollScore*0.25)+(symScore*0.20);
-
-    const isFrontal=(Math.abs(yawDeg)<=FRONTAL.yawDeg)&&
-      (Math.abs(pitchDeg)<=FRONTAL.pitchDeg)&&
-      (Math.abs(rollDeg)<=FRONTAL.rollDeg)&&
-      (symmetry>=FRONTAL.symmetryMin)&&
-      (score>=FRONTAL.scoreMin);
-
-    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeMidX,eyeMidY,eyeDist,faceWidth,noseX,noseY};
+  function collectCalibration(pose){
+    if(!pose){
+      fitBaseline.noFaceFrames++;
+      const p=clamp((fitBaseline.noFaceFrames/CALIB.maxNoFaceFrames)*100,0,100);
+      showCalib("얼굴 인식 대기","정면으로 화면 중앙에 얼굴을 맞춰 주세요",p);
+      if(fitBaseline.noFaceFrames>=CALIB.maxNoFaceFrames){ resetFitBaseline(); setStatus("캘리브레이션 실패: 얼굴을 중앙에 두고 다시 시작해 주세요"); }
+      return;
+    }
+    fitBaseline.noFaceFrames=0;
+    if(!(pose.score>=CALIB.minFrontalScore&&pose.symmetry>=CALIB.minSymmetry)){
+      showCalib("초기 얼굴 스캔 중","정면을 유지해 주세요. 얼굴 각도를 안정화하는 중입니다.",Math.round((fitBaseline.samples.length/CALIB.samplesNeeded)*100));
+      return;
+    }
+    fitBaseline.samples.push({faceWidth:pose.faceWidth,eyeDist:pose.eyeDist,bridgeX:pose.bridgeX,bridgeY:pose.bridgeY});
+    const progress=Math.round((fitBaseline.samples.length/CALIB.samplesNeeded)*100);
+    showCalib("초기 얼굴 스캔 중","개인 얼굴 기준점을 생성하고 있습니다.",progress);
+    if(fitBaseline.samples.length<CALIB.samplesNeeded)return;
+    fitBaseline.faceWidth=median(fitBaseline.samples.map((s)=>s.faceWidth));
+    fitBaseline.eyeDist=median(fitBaseline.samples.map((s)=>s.eyeDist));
+    fitBaseline.bridgeX=median(fitBaseline.samples.map((s)=>s.bridgeX));
+    fitBaseline.bridgeY=median(fitBaseline.samples.map((s)=>s.bridgeY));
+    const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
+    fitBaseline.frameWorld=(fitBaseline.faceWidth*worldPerNdc*0.84)+(fitBaseline.eyeDist*worldPerNdc*0.16);
+    fitBaseline.ready=true;
+    showCalib("개인 기준 생성 완료","피팅 적용을 시작합니다.",100);
+    setTimeout(hideCalib,350);
+    setStatus("개인 기준 생성 완료: 피팅 적용 중");
   }
 
   function apply3D(pose){
     if(!glasses)return;
-    const canShow=!!pose;
-    if(!canShow){
-      glasses.visible=false;
-      smoothState.ready=false;
-      return;
-    }
-
-    const anchorX=(pose.noseX*0.62)+(pose.eyeMidX*0.38);
-    const anchorY=(pose.noseY*0.62)+(pose.eyeMidY*0.38)+0.01;
+    if(!pose||!fitBaseline.ready){ glasses.visible=false; smoothState.ready=false; return; }
+    const anchorX=(pose.bridgeX*0.74)+(pose.eyeMidX*0.26);
+    const anchorY=(pose.bridgeY*0.68)+(pose.eyeMidY*0.32)-0.008;
     const pos=ndcToWorld(anchorX,anchorY);
-    const eyeDistNdc=pose.eyeDist;
-    const faceWidthNdc=Math.max(pose.faceWidth||0,eyeDistNdc*1.95);
-    const halfH=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z;
-    const halfW=halfH*cam3d.aspect;
-    const worldPerNdc=2*halfW;
-    const faceWorldWidth=faceWidthNdc*worldPerNdc;
-    const pdWorld=eyeDistNdc*worldPerNdc;
-    const desiredFrameWorld=(faceWorldWidth*0.86)+(pdWorld*0.14);
+    const baseFace=Math.max(fitBaseline.faceWidth||pose.faceWidth,1e-5);
+    const faceRatio=clamp((pose.faceWidth||baseFace)/baseFace,0.82,1.22);
+    const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
+    const pdWorld=pose.eyeDist*worldPerNdc;
+    const desiredFrameWorld=(fitBaseline.frameWorld*faceRatio*0.9)+(pdWorld*0.1);
     const modelNormWidth=(glasses.userData&&glasses.userData.normalizedWidth)||1.0;
-    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.46,1.35);
-
-    const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg);
-    const yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25;
-    const pitchRad=THREE.MathUtils.degToRad(clamp(pose.pitchDeg,-12,12))*0.22;
-
+    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.42,1.2);
+    const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg), yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25, pitchRad=THREE.MathUtils.degToRad(clamp(pose.pitchDeg,-12,12))*0.22;
     const qFace=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitchRad,yawRad,rollRad,"YXZ"));
-
-    if(!smoothState.ready){
-      smoothState.ready=true;
-      smoothState.px=pos.x;
-      smoothState.py=pos.y;
-      smoothState.pz=pos.z;
-      smoothState.sx=targetScale;
-      smoothState.q=qFace.clone();
-    }else{
-      const a=0.28;
-      smoothState.px=smoothState.px+(pos.x-smoothState.px)*a;
-      smoothState.py=smoothState.py+(pos.y-smoothState.py)*a;
-      smoothState.pz=smoothState.pz+(pos.z-smoothState.pz)*a;
-      smoothState.sx=smoothState.sx+(targetScale-smoothState.sx)*a;
-      smoothState.q.slerp(qFace,a);
-    }
-
+    if(!smoothState.ready){ smoothState.ready=true; smoothState.px=pos.x; smoothState.py=pos.y; smoothState.pz=pos.z; smoothState.sx=targetScale; smoothState.q=qFace.clone(); }
+    else { const a=0.22; smoothState.px+= (pos.x-smoothState.px)*a; smoothState.py+=(pos.y-smoothState.py)*a; smoothState.pz+=(pos.z-smoothState.pz)*a; smoothState.sx+=(targetScale-smoothState.sx)*a; smoothState.q.slerp(qFace,a); }
     glasses.visible=true;
-    glasses.position.set(smoothState.px,smoothState.py-0.045+MODEL_BASE.offsetY,smoothState.pz+MODEL_BASE.offsetZ);
-    glasses.quaternion.copy(smoothState.q);
-    if(modelBaseQuat)glasses.quaternion.multiply(modelBaseQuat);
-    glasses.scale.setScalar(smoothState.sx);
+    glasses.position.set(smoothState.px,smoothState.py-0.012+MODEL_BASE.offsetY,smoothState.pz+MODEL_BASE.offsetZ);
+    glasses.quaternion.copy(smoothState.q); if(modelBaseQuat)glasses.quaternion.multiply(modelBaseQuat); glasses.scale.setScalar(smoothState.sx);
   }
 
   function updateFrontalState(pose){
-    if(!pose){
-      frontalState.streak=0;
-      frontalState.locked=false;
-      setStatus("얼굴 미검출: 얼굴을 화면 중앙에 맞춰 주세요");
-      updateCacheUI();
-      pdInfo.textContent="정면 점수: 측정 전";
-      return;
-    }
-
+    if(!pose){ frontalState.streak=0; frontalState.locked=false; pdInfo.textContent="정면 점수: 측정 전"; return; }
     frontalState.streak=pose.isFrontal?(frontalState.streak+1):Math.max(0,frontalState.streak-1);
     frontalState.locked=frontalState.streak>=FRONTAL.lockFrames;
-
-    const lockTxt=frontalState.locked?"정면 확정(모델 표시)":"정면 대기";
-    setStatus(`${lockTxt} | yaw ${pose.yawDeg.toFixed(1)} pitch ${pose.pitchDeg.toFixed(1)} roll ${pose.rollDeg.toFixed(1)}`);
     pdInfo.textContent=`정면 점수: ${(pose.score*100).toFixed(0)}% / 대칭 ${(pose.symmetry*100).toFixed(0)}%`;
+    if(!fitBaseline.ready)setStatus("초기 캘리브레이션 진행 중");
   }
 
-  function resetCalibration(){
-    baseline.ready=false;
-    baseline.collecting=true;
-    baseline.samples=[];
-    frontalState.streak=0;
-    frontalState.locked=false;
-    smoothState.ready=false;
-    if(glasses)glasses.visible=false;
-    setStatus("정면 재보정 중... 정면을 유지해 주세요");
+  function resetCalibration(){ frontalState.streak=0; frontalState.locked=false; smoothState.ready=false; resetFitBaseline(); showCalib("초기 얼굴 스캔 준비","정면을 유지하면 개인 맞춤 기준을 생성합니다.",0); if(glasses)glasses.visible=false; setStatus("정면 재보정 중... 정면을 유지해 주세요"); }
+
+  function setupDockedCta(){
+    const btn=backHomeBtn, holder=document.querySelector('[data-cta-placeholder="game"]'); if(!btn||!holder)return;
+    let triggerY=null, docked=false;
+    const ensure=()=>{ if(docked)return; const r=btn.getBoundingClientRect(); if(r.height<=0)return; triggerY=Math.max(0,Math.round(window.scrollY+r.top-12)); };
+    const dock=()=>{ if(docked)return; const s=btn.getBoundingClientRect(); const w=Math.min(Math.max(btn.offsetWidth,s.width),Math.max(160,window.innerWidth-20)); const h=Math.max(btn.offsetHeight,s.height); const left=Math.round((window.innerWidth-w)/2); holder.style.height=`${h}px`; holder.classList.add("active"); if(btn.parentElement!==document.body)document.body.appendChild(btn); btn.classList.add("is-docked"); btn.style.width=`${w}px`; btn.style.left=`${left}px`; btn.style.top="12px"; btn.style.position="fixed"; const e=btn.getBoundingClientRect(); btn.style.transition="none"; btn.style.transform=`translate(${(s.left-e.left).toFixed(1)}px, ${(s.top-e.top).toFixed(1)}px)`; requestAnimationFrame(()=>{ btn.style.transition="transform .65s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease"; btn.style.transform="translate(0px, 0px)"; }); docked=true; };
+    const undock=()=>{ if(!docked)return; btn.classList.remove("is-docked"); btn.style.width=""; btn.style.left=""; btn.style.top=""; btn.style.position=""; btn.style.transform=""; btn.style.transition=""; const head=document.querySelector(".head"); if(head)head.insertBefore(btn,holder); holder.classList.remove("active"); holder.style.height=""; docked=false; triggerY=null; };
+    const update=()=>{ ensure(); if(triggerY===null)return; if(window.scrollY>triggerY)dock(); else undock(); };
+    window.addEventListener("scroll",update,{passive:true}); window.addEventListener("resize",()=>{ if(docked)undock(); update(); }); update();
   }
 
   function ensurePipeline(){
     if(pipelineReady)return;
-
     faceMesh=new FaceMesh({locateFile:(f)=>`${mpAssetBase}${f}`});
     faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.35,minTrackingConfidence:0.35});
     faceMesh.onResults((results)=>{
-      try{
-        const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0];
-        const pose=pts?calcPose(pts):null;
-        updateFrontalState(pose);
-        apply3D(pose);
-        if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
-      }catch(err){
-        setStatus("추적 처리 오류: 새로고침 후 다시 시도해 주세요");
-        console.error(err);
-      }
+      try{ const pts=results.multiFaceLandmarks&&results.multiFaceLandmarks[0]; const pose=pts?calcPose(pts):null; collectCalibration(pose); updateFrontalState(pose); apply3D(pose); if(renderer&&scene&&cam3d)renderer.render(scene,cam3d); }
+      catch(err){ setStatus("추적 처리 오류: 새로고침 후 다시 시도해 주세요"); console.error(err); }
     });
-
     pipelineReady=true;
   }
 
@@ -449,157 +291,28 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       setStatus("카메라 시작 중...");
       if(!pipelineReady)ensurePipeline();
       if(typeof Camera==="undefined")throw new Error("Camera unavailable");
-
-      if(!mpCam){
-        mpCam=new Camera(video,{onFrame:async()=>{ if(running)await faceMesh.send({image:video}); },width:960,height:720});
-      }
-
-      running=true;
-      await mpCam.start();
-      startBtn.disabled=true;
-      setStatus("실행 중: 모델 C 고정");
-    }catch(err){
-      const msg=String(err?.message||"").toLowerCase();
-      if(/secure|https/.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요");
-      else if(/denied|notallowed|permission/.test(msg))setStatus("카메라 권한이 거부되었습니다");
-      else setStatus("카메라 시작 실패: 라이브러리/권한 확인 필요");
-      console.error(err);
-    }
+      if(!mpCam)mpCam=new Camera(video,{onFrame:async()=>{ if(running)await faceMesh.send({image:video}); },width:960,height:720});
+      running=true; resetFitBaseline(); showCalib("초기 얼굴 스캔 준비","정면을 유지하면 개인 맞춤 기준을 생성합니다.",0);
+      await mpCam.start(); startBtn.disabled=true; setStatus("실행 중: 초기 캘리브레이션 진행");
+    }catch(err){ const msg=String(err?.message||"").toLowerCase(); if(/secure|https/.test(msg))setStatus("카메라 시작 실패: HTTPS 환경에서 실행해 주세요"); else if(/denied|notallowed|permission/.test(msg))setStatus("카메라 권한이 거부되었습니다"); else setStatus("카메라 시작 실패: 라이브러리/권한 확인 필요"); console.error(err); }
   }
+  function stop(){ running=false; try{ if(video&&video.srcObject){ video.srcObject.getTracks().forEach((t)=>t.stop()); video.srcObject=null; } if(glasses)glasses.visible=false; hideCalib(); startBtn.disabled=false; setStatus("중지됨"); }catch(_){ } }
 
-  function stop(){
-    running=false;
-    try{
-      if(video&&video.srcObject){
-        video.srcObject.getTracks().forEach((t)=>t.stop());
-        video.srcObject=null;
-      }
-      if(glasses)glasses.visible=false;
-      startBtn.disabled=false;
-      setStatus("중지됨");
-    }catch(_){ }
-  }
-
-  function disableUnusedControls(){
-    modelSelect.innerHTML="";
-    const op=document.createElement("option");
-    op.value=MODEL_PATH;
-    op.textContent="모델 C (고정)";
-    modelSelect.appendChild(op);
-    modelSelect.disabled=true;
-  }
-
-  function setupZoomControls(){
-    zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); });
-    zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); });
-    zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); });
-  }
+  function disableUnusedControls(){ modelSelect.innerHTML=""; const op=document.createElement("option"); op.value=MODEL_PATH; op.textContent="모델 C (고정)"; modelSelect.appendChild(op); modelSelect.disabled=true; }
+  function setupZoomControls(){ zoomInBtn.addEventListener("click",()=>{ viewZoom=Math.min(1.8,viewZoom+0.1); applyViewZoom(); }); zoomOutBtn.addEventListener("click",()=>{ viewZoom=Math.max(0.8,viewZoom-0.1); applyViewZoom(); }); zoomResetBtn.addEventListener("click",()=>{ viewZoom=1; applyViewZoom(); }); }
 
   async function boot(){
     try{
-      await ensureDeps();
-      await resolveMediapipeAssetBase();
-      initRenderer();
-      await loadModelC();
-      applyViewZoom();
-      setupZoomControls();
-      disableUnusedControls();
-
-      await resolveDeployTag();
-      updateCacheUI();
-
-      startBtn.addEventListener("click",start);
-      stopBtn.addEventListener("click",stop);
-      recalibrateBtn.addEventListener("click",resetCalibration);
+      await ensureDeps(); await resolveMediapipeAssetBase(); initRenderer(); await loadModelC(); applyViewZoom(); setupDockedCta(); setupZoomControls(); disableUnusedControls(); await resolveDeployTag(); updateCacheUI();
+      startBtn.addEventListener("click",start); stopBtn.addEventListener("click",stop); recalibrateBtn.addEventListener("click",resetCalibration);
       if(backHomeBtn)backHomeBtn.addEventListener("click",()=>{ window.location.href="/?view=home"; });
-
-      updateCacheUI();
-      pdInfo.textContent="정면 점수: 측정 전";
-      setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다");
+      pdInfo.textContent="정면 점수: 측정 전"; setStatus("대기 중: 카메라 시작 후 초기 스캔을 진행합니다");
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
-    }catch(err){
-      setStatus("초기화 실패: 라이브러리/모델 로드를 확인해 주세요");
-      console.error(err);
-    }
+    }catch(err){ setStatus("초기화 실패: 라이브러리/모델 로드를 확인해 주세요"); console.error(err); }
   }
 
   boot();
 })();
 </script>
-<script>
-(()=>{
-  const btn=document.getElementById("backHomeBtn");
-  const holder=document.querySelector("[data-cta-placeholder=\"game\"]");
-  if(!btn||!holder)return;
-  let triggerY=null;
-  let docked=false;
-
-  function ensureTrigger(){
-    if(docked)return;
-    const rect=btn.getBoundingClientRect();
-    if(rect.height<=0)return;
-    triggerY=Math.max(0,Math.round(window.scrollY+rect.top-12));
-  }
-
-  function dock(){
-    if(docked)return;
-    const start=btn.getBoundingClientRect();
-    const width=Math.min(Math.max(btn.offsetWidth,start.width),Math.max(160,window.innerWidth-20));
-    const height=Math.max(btn.offsetHeight,start.height);
-    const targetTop=12;
-    const targetLeft=Math.round((window.innerWidth-width)/2);
-
-    holder.style.height=`${height}px`;
-    holder.classList.add("active");
-    if(btn.parentElement!==document.body)document.body.appendChild(btn);
-
-    btn.classList.add("is-docked");
-    btn.style.width=`${width}px`;
-    btn.style.left=`${targetLeft}px`;
-    btn.style.top=`${targetTop}px`;
-    btn.style.position="fixed";
-
-    const end=btn.getBoundingClientRect();
-    const dx=(start.left-end.left).toFixed(1);
-    const dy=(start.top-end.top).toFixed(1);
-    btn.style.transition="none";
-    btn.style.transform=`translate(${dx}px, ${dy}px)`;
-    requestAnimationFrame(()=>{
-      btn.style.transition="transform .65s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease";
-      btn.style.transform="translate(0px, 0px)";
-    });
-    docked=true;
-  }
-
-  function undock(){
-    if(!docked)return;
-    btn.classList.remove("is-docked");
-    btn.style.width="";
-    btn.style.left="";
-    btn.style.top="";
-    btn.style.position="";
-    btn.style.transform="";
-    btn.style.transition="";
-    const head=document.querySelector(".head");
-    if(head)head.insertBefore(btn,holder);
-    holder.classList.remove("active");
-    holder.style.height="";
-    docked=false;
-    triggerY=null;
-  }
-
-  function update(){
-    ensureTrigger();
-    if(triggerY===null)return;
-    if(window.scrollY>triggerY)dock();
-    else undock();
-  }
-
-  window.addEventListener("scroll",update,{passive:true});
-  window.addEventListener("resize",()=>{ if(docked)undock(); update(); });
-  update();
-})();
-</script>
 </body>
 </html>
-
