@@ -133,7 +133,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   let renderer=null, scene=null, cam3d=null, glasses=null, modelBaseQuat=null;
   const smoothState={ready:false,px:0,py:0,pz:0,sx:1,q:null};
   const frontalState={streak:0,locked:false};
-  const fitBaseline={ready:false,samples:[],noFaceFrames:0,faceWidth:0,eyeDist:0,bridgeX:0,bridgeY:0,frameWorld:0};
+  const fitBaseline={ready:false,samples:[],noFaceFrames:0,faceWidth:0,eyeDist:0,templeDist:0,bridgeX:0,bridgeY:0,templeMidX:0,templeMidY:0,frameWorld:0};
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const median=(arr)=>{ if(!arr||arr.length===0)return 0; const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length*0.5); return s.length%2?s[m]:(s[m-1]+s[m])*0.5; };
@@ -150,7 +150,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function hideCalib(){ calibOverlay.classList.add("hidden"); }
   function resetFitBaseline(){
     fitBaseline.ready=false; fitBaseline.samples=[]; fitBaseline.noFaceFrames=0;
-    fitBaseline.faceWidth=0; fitBaseline.eyeDist=0; fitBaseline.bridgeX=0; fitBaseline.bridgeY=0; fitBaseline.frameWorld=0;
+    fitBaseline.faceWidth=0; fitBaseline.eyeDist=0; fitBaseline.templeDist=0; fitBaseline.bridgeX=0; fitBaseline.bridgeY=0; fitBaseline.templeMidX=0; fitBaseline.templeMidY=0; fitBaseline.frameWorld=0;
   }
 
   async function resolveMediapipeAssetBase(){
@@ -192,7 +192,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const eyeL=pts[33], eyeR=pts[263], nose=pts[1]||pts[6]; if(!eyeL||!eyeR||!nose)return null;
     const eyeDx=eyeR.x-eyeL.x, eyeDy=eyeR.y-eyeL.y; const eyeDist=Math.hypot(eyeDx,eyeDy); if(eyeDist<1e-5)return null;
     const eyeMidX=(eyeL.x+eyeR.x)*0.5, eyeMidY=(eyeL.y+eyeR.y)*0.5;
-    const faceL=pts[234]||pts[93]||eyeL, faceR=pts[454]||pts[323]||eyeR; const faceWidth=Math.hypot(faceR.x-faceL.x,faceR.y-faceL.y);
+    const faceL=pts[234]||pts[93]||eyeL, faceR=pts[454]||pts[323]||eyeR; const faceWidth=Math.hypot(faceR.x-faceL.x,faceR.y-faceL.y); const templeL=pts[127]||faceL, templeR=pts[356]||faceR; const templeDist=Math.hypot(templeR.x-templeL.x,templeR.y-templeL.y); const templeMidX=(templeL.x+templeR.x)*0.5, templeMidY=(templeL.y+templeR.y)*0.5;
     const bridge=pts[168]||pts[6]||nose;
     const yawDeg=clamp(((nose.x-eyeMidX)/eyeDist)*92,-45,45);
     const pitchDeg=clamp(((nose.y-eyeMidY)/eyeDist)*92,-45,45);
@@ -201,7 +201,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const symmetry=1-(Math.abs(dL-dR)/(dL+dR+1e-6));
     const yawScore=1-clamp(Math.abs(yawDeg)/FRONTAL.yawDeg,0,1), pitchScore=1-clamp(Math.abs(pitchDeg)/FRONTAL.pitchDeg,0,1), rollScore=1-clamp(Math.abs(rollDeg)/FRONTAL.rollDeg,0,1), symScore=clamp((symmetry-FRONTAL.symmetryMin)/(1-FRONTAL.symmetryMin),0,1);
     const score=(yawScore*0.35)+(pitchScore*0.2)+(rollScore*0.25)+(symScore*0.2);
-    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal:score>=FRONTAL.scoreMin,eyeMidX,eyeMidY,eyeDist,faceWidth,bridgeX:bridge.x,bridgeY:bridge.y};
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal:score>=FRONTAL.scoreMin,eyeMidX,eyeMidY,eyeDist,faceWidth,templeDist,templeMidX,templeMidY,bridgeX:bridge.x,bridgeY:bridge.y};
   }
 
   function collectCalibration(pose){
@@ -218,16 +218,15 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       showCalib("초기 얼굴 스캔 중","정면을 유지해 주세요. 얼굴 각도를 안정화하는 중입니다.",Math.round((fitBaseline.samples.length/CALIB.samplesNeeded)*100));
       return;
     }
-    fitBaseline.samples.push({faceWidth:pose.faceWidth,eyeDist:pose.eyeDist,bridgeX:pose.bridgeX,bridgeY:pose.bridgeY});
+    fitBaseline.samples.push({faceWidth:pose.faceWidth,eyeDist:pose.eyeDist,templeDist:pose.templeDist,templeMidX:pose.templeMidX,templeMidY:pose.templeMidY,bridgeX:pose.bridgeX,bridgeY:pose.bridgeY});
     const progress=Math.round((fitBaseline.samples.length/CALIB.samplesNeeded)*100);
     showCalib("초기 얼굴 스캔 중","개인 얼굴 기준점을 생성하고 있습니다.",progress);
     if(fitBaseline.samples.length<CALIB.samplesNeeded)return;
     fitBaseline.faceWidth=median(fitBaseline.samples.map((s)=>s.faceWidth));
     fitBaseline.eyeDist=median(fitBaseline.samples.map((s)=>s.eyeDist));
-    fitBaseline.bridgeX=median(fitBaseline.samples.map((s)=>s.bridgeX));
-    fitBaseline.bridgeY=median(fitBaseline.samples.map((s)=>s.bridgeY));
+    fitBaseline.templeDist=median(fitBaseline.samples.map((s)=>s.templeDist)); fitBaseline.templeMidX=median(fitBaseline.samples.map((s)=>s.templeMidX)); fitBaseline.templeMidY=median(fitBaseline.samples.map((s)=>s.templeMidY)); fitBaseline.bridgeX=median(fitBaseline.samples.map((s)=>s.bridgeX)); fitBaseline.bridgeY=median(fitBaseline.samples.map((s)=>s.bridgeY));
     const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
-    fitBaseline.frameWorld=(fitBaseline.faceWidth*worldPerNdc*1.08)+(fitBaseline.eyeDist*worldPerNdc*0.20);
+    fitBaseline.frameWorld=(fitBaseline.templeDist*worldPerNdc*0.98)+(fitBaseline.faceWidth*worldPerNdc*0.16)+(fitBaseline.eyeDist*worldPerNdc*0.10);
     fitBaseline.ready=true;
     showCalib("개인 기준 생성 완료","피팅 적용을 시작합니다.",100);
     setTimeout(hideCalib,350);
@@ -237,16 +236,16 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   function apply3D(pose){
     if(!glasses)return;
     if(!pose||!fitBaseline.ready){ glasses.visible=false; smoothState.ready=false; return; }
-    const anchorX=(pose.bridgeX*0.74)+(pose.eyeMidX*0.26);
-    const anchorY=(pose.bridgeY*0.68)+(pose.eyeMidY*0.32)-0.008;
+    const anchorX=(pose.bridgeX*0.62)+(pose.eyeMidX*0.24)+(pose.templeMidX*0.14);
+    const anchorY=(pose.bridgeY*0.64)+(pose.eyeMidY*0.26)+(pose.templeMidY*0.10)-0.01;
     const pos=ndcToWorld(anchorX,anchorY);
-    const baseFace=Math.max(fitBaseline.faceWidth||pose.faceWidth,1e-5);
-    const faceRatio=clamp((pose.faceWidth||baseFace)/baseFace,0.82,1.22);
+    const baseTemple=Math.max(fitBaseline.templeDist||pose.templeDist,1e-5);
+    const templeRatio=clamp((pose.templeDist||baseTemple)/baseTemple,0.78,1.26);
     const hh=Math.tan(THREE.MathUtils.degToRad(cam3d.fov*0.5))*cam3d.position.z, hw=hh*cam3d.aspect, worldPerNdc=2*hw;
     const pdWorld=pose.eyeDist*worldPerNdc;
-    const desiredFrameWorld=(fitBaseline.frameWorld*faceRatio*1.06)+(pdWorld*0.08);
+    const desiredFrameWorld=(fitBaseline.frameWorld*templeRatio*0.96)+(pdWorld*0.06);
     const modelNormWidth=(glasses.userData&&glasses.userData.normalizedWidth)||1.0;
-    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.46,1.48);
+    const targetScale=clamp((desiredFrameWorld/modelNormWidth)*MODEL_BASE.scale,0.38,1.25);
     const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg), yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25, pitchRad=THREE.MathUtils.degToRad(clamp(pose.pitchDeg,-12,12))*0.22;
     const qFace=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitchRad,yawRad,rollRad,"YXZ"));
     if(!smoothState.ready){ smoothState.ready=true; smoothState.px=pos.x; smoothState.py=pos.y; smoothState.pz=pos.z; smoothState.sx=targetScale; smoothState.q=qFace.clone(); }
