@@ -69,7 +69,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
         <label class="select-label" for="modelSelect">안경 모델 선택</label>
         <select id="modelSelect" class="select"></select>
       </div>
-      <div class="note" id="pdInfo">AI PD: 측정 전</div>
+      <div class="note" id="pdInfo">정면 점수: 측정 전</div>
+
       <div id="status" class="status">대기 중</div>
     </aside>
   </section>
@@ -87,8 +88,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const zoomResetBtn=document.getElementById("zoomResetBtn");
   const zoomInBtn=document.getElementById("zoomInBtn");
   const modelSelect=document.getElementById("modelSelect");
-  const tunePanel=document.getElementById("tunePanel");
-  const stylePanel=document.getElementById("stylePanel");
   const status=document.getElementById("status");
   const pdInfo=document.getElementById("pdInfo");
   const cacheTagEl=document.getElementById("cacheTag");
@@ -461,9 +460,6 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     op.textContent="모델 C (고정)";
     modelSelect.appendChild(op);
     modelSelect.disabled=true;
-
-    tunePanel.style.opacity="0.5";
-    Array.from(tunePanel.querySelectorAll("input,button")).forEach((el)=>{ el.disabled=true; });
   }
 
   function setupZoomControls(){
@@ -491,7 +487,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
       updateCacheUI();
       pdInfo.textContent="정면 점수: 측정 전";
-      setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | "+CACHE_TAG);
+      setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다");
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
     }catch(err){
       setStatus("초기화 실패: 라이브러리/모델 로드를 확인해 주세요");
@@ -504,6 +500,9 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
+
 
 
 
