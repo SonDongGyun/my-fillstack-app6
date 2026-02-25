@@ -101,7 +101,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 
   const MODEL_PATH="/static/models/model_c.glb";
   let CACHE_TAG="deploy-pending";
-  const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.95};
+  const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.88};
 
   const LIB_SOURCES={
     three:["/static/vendor/three.min.js","https://cdn.jsdelivr.net/npm/three/build/three.min.js"],
@@ -300,6 +300,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const noseX=nose.x;
     const noseY=nose.y;
 
+    const faceL=pts[234]||pts[93]||eyeL;
+    const faceR=pts[454]||pts[323]||eyeR;
+    const faceWidth=Math.hypot(faceR.x-faceL.x,faceR.y-faceL.y);
+
     if(baseline.collecting){
       baseline.samples.push({xRatio,yRatio});
       if(baseline.samples.length>=baseline.needed){
@@ -334,7 +338,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       (symmetry>=FRONTAL.symmetryMin)&&
       (score>=FRONTAL.scoreMin);
 
-    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeMidX,eyeMidY,eyeDist,noseX,noseY};
+    return {yawDeg,pitchDeg,rollDeg,symmetry,score,isFrontal,eyeL,eyeR,eyeMidX,eyeMidY,eyeDist,faceWidth,noseX,noseY};
   }
 
   function apply3D(pose){
@@ -350,7 +354,10 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
     const anchorY=(pose.noseY*0.62)+(pose.eyeMidY*0.38)+0.01;
     const pos=ndcToWorld(anchorX,anchorY);
     const eyeDistNdc=pose.eyeDist;
-    const targetScale=clamp(eyeDistNdc*6.0,0.45,2.2)*MODEL_BASE.scale;
+    const faceWidthNdc=Math.max(pose.faceWidth||0,eyeDistNdc*1.95);
+    const widthScale=clamp(faceWidthNdc*3.2,0.58,1.95);
+    const pdScale=clamp(eyeDistNdc*4.6,0.48,1.58);
+    const targetScale=((widthScale*0.74)+(pdScale*0.26))*MODEL_BASE.scale;
 
     const rollRad=THREE.MathUtils.degToRad(-pose.rollDeg);
     const yawRad=THREE.MathUtils.degToRad(clamp(pose.yawDeg,-12,12))*0.25;
