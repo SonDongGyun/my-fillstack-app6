@@ -42,7 +42,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   <section class="head">
     <div>
       <h1 class="title">안경 AR 가상 피팅</h1>
-      <p class="sub">모델별 미세 보정을 실시간으로 조절해 정렬을 맞출 수 있습니다.</p>
+      <p class="sub">모델별 미세 보정을 실시간으로 조절해 정렬을 맞출 수 있습니다.</p>`n      <p class="sub" id="cacheTag" style="font-weight:700;color:#1d5eb4">캐시 태그: ar-fit-cache-20260225-01</p>
     </div>
     <a class="ghost-btn" href="/?view=home">운동 시작하기</a>
   </section>
@@ -110,9 +110,11 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
   const modelSelect=document.getElementById("modelSelect");
   const tunePanel=document.getElementById("tunePanel");
   const status=document.getElementById("status");
-  const pdInfo=document.getElementById("pdInfo");
+  const pdInfo=document.getElementById("pdInfo");`n  const cacheTagEl=document.getElementById("cacheTag");
+  const cacheTagEl=document.getElementById("cacheTag");
 
-  const MODEL_PATH="/static/models/model_c.glb";
+  const MODEL_PATH="/static/models/model_c.glb";`n  const CACHE_TAG="ar-fit-cache-20260225-01";
+  const CACHE_TAG="ar-fit-cache-20260225-01";
   const MODEL_BASE={yaw:-Math.PI*0.5,pitch:0,roll:0,offsetY:-0.02,offsetZ:0.02,scale:0.95};
 
   const LIB_SOURCES={
@@ -351,7 +353,7 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       frontalState.streak=0;
       frontalState.locked=false;
       setStatus("얼굴을 화면 중앙에 맞춰 주세요");
-      pdInfo.textContent="정면 점수: 측정 전";
+      if(cacheTagEl)cacheTagEl.textContent=`캐시 태그: ${CACHE_TAG}`;`n      pdInfo.textContent=`정면 점수: 측정 전 | ${CACHE_TAG}`;
       return;
     }
 
@@ -457,8 +459,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
       stopBtn.addEventListener("click",stop);
       recalibrateBtn.addEventListener("click",resetCalibration);
 
-      pdInfo.textContent="정면 점수: 측정 전";
-      setStatus("대기 중: 모델 C는 정면 확정 시에만 표시됩니다");
+      if(cacheTagEl)cacheTagEl.textContent=`캐시 태그: ${CACHE_TAG}`;`n      pdInfo.textContent=`정면 점수: 측정 전 | ${CACHE_TAG}`;
+      setStatus(`대기 중: 모델 C는 정면 확정 시에만 표시됩니다 | ${CACHE_TAG}`);
       if(renderer&&scene&&cam3d)renderer.render(scene,cam3d);
     }catch(err){
       setStatus("초기화 실패: 라이브러리/모델 로드를 확인해 주세요");
@@ -471,6 +473,8 @@ video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;t
 </script>
 </body>
 </html>
+
+
 
 
 
