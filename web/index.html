@@ -6,7 +6,7 @@
 <title>&#xB208;&#xAC74;&#xAC15; &#xC2DC;&#xB825;&#xC9C0;&#xD0B4;&#xC774;</title>
 <meta name="description" content="&#xCE74;&#xBA54;&#xB77C; &#xAE30;&#xBC18; &#xB208; &#xC6B4;&#xB3D9;&#xACFC; 20-20-20 &#xD734;&#xC2DD; &#xC54C;&#xB9BC;&#xC73C;&#xB85C; &#xB514;&#xC9C0;&#xD138; &#xB208;&#xD53C;&#xB85C;&#xB97C; &#xAD00;&#xB9AC;&#xD558;&#xB294; &#xB208; &#xAC74;&#xAC15; &#xC571;" />
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-<link rel="apple-touch-icon" href="/static/favicon.svg" />
+<link rel="apple-touch-icon" href="/static/davich_logo.png" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="&#xB208;&#xAC74;&#xAC15; &#xC2DC;&#xB825;&#xC9C0;&#xD0B4;&#xC774;" />
 <meta property="og:title" content="&#xB208;&#xAC74;&#xAC15; &#xC2DC;&#xB825;&#xC9C0;&#xD0B4;&#xC774;" />
@@ -182,22 +182,6 @@
 @keyframes circlePanelWarn{0%{transform:translateY(0)}35%{transform:translateY(3px)}100%{transform:translateY(0)}}
 @keyframes circleTargetWin{0%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(-50%,-50%) scale(1.25)}100%{transform:translate(-50%,-50%) scale(1)}}
 @keyframes circleCursorWin{0%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(-50%,-50%) scale(1.2)}100%{transform:translate(-50%,-50%) scale(1)}}
-
-/* Gentle Monster theme override */
-:root{--b900:#0f0f0f;--b700:#1a1a1a;--b500:#2a2a2a;--b100:#f2f2f2;--line:#dedede;--ink:#131313;--muted:#666;--ok:#2d7a4e;--warn:#8a5a00}
-body{font-family:"Pretendard Variable","SUIT Variable","Noto Sans KR",sans-serif;background:radial-gradient(1200px 700px at 18% -16%,#ffffff 0%,#f4f4f4 44%,#ececec 100%),linear-gradient(180deg,#fafafa 0%,#efefef 100%)}
-.app{background:#ffffffeb;border:1px solid #dcdcdc;box-shadow:0 20px 46px rgba(0,0,0,.09);backdrop-filter:blur(5px)}
-.header,.intro-wrap,.side,.panel,.card,.notice,.evidence-summary,.news-item,.info-item{background:#fff !important;border-color:#dfdfdf !important;box-shadow:none !important}
-.title,.card h2,.side h2,.panel h3,.intro-title{color:#111 !important}
-.subtitle,.sub,.lead,.menu-desc,.news-summary,.note,.status,.meta,.metric,.news-meta,.ticker-item,.info-item{color:#666 !important}
-a{color:#111}
-.primary-btn{background:#111 !important;color:#fff !important;border:1px solid #111 !important;box-shadow:none !important}
-.secondary-btn,.ghost-btn,.menu-btn,.mini-btn{background:#fff !important;color:#111 !important;border:1px solid #d2d2d2 !important}
-.menu-btn:hover,.ghost-btn:hover,.secondary-btn:hover,.mini-btn:hover{background:#f5f5f5 !important;border-color:#bfbfbf !important}
-.scroll-cta.is-docked{background:rgba(255,255,255,.98) !important;color:#111 !important;border-color:#d1d1d1 !important;box-shadow:0 8px 20px rgba(0,0,0,.11) !important}
-.intro-badge,.mode-chip,.ticker{background:#f7f7f7 !important;border-color:#d9d9d9 !important;color:#303030 !important}
-.optician-3d-image{filter:grayscale(1) contrast(1.08)}
-.cta-row .primary-btn::after{display:none}
 </style>
 </head>
 <body>
@@ -252,7 +236,7 @@ a{color:#111}
         <div class="optician-3d-canvas-wrap">
           <canvas id="optician3dCanvas" class="optician-3d-canvas" aria-hidden="true"></canvas>
           <div id="optician3dFallback" class="optician-3d-image-pair optician-3d-fallback">
-            <img class="optician-3d-image" src="/static/kakao-share.png" alt="눈건강 소개 이미지" />
+            <img class="optician-3d-image" src="/static/davich_16x9.png" alt="눈건강 소개 이미지" />
           </div>
         </div>
       </div>
@@ -270,15 +254,15 @@ a{color:#111}
       <div class="info-item">간단한 눈 운동과 휴식 알림을 통해 디지털 눈피로를 완화하도록 돕습니다.</div>
     </div>
     <div class="card reveal">
-      <h2>젠틀몬스터 스타일 소식</h2>
+      <h2>젠틀몬스터 최신 소식</h2>
       <div id="newsStatus" class="news-status">불러오는 중...</div>
       <ul id="davichNewsList" class="news-list"></ul>
     </div>
     <div class="card reveal">
       <h2>바로가기</h2>
       <div class="market-links">
-        <a class="menu-btn magnetic" href="https://www.gentlemonster.com" target="_blank" rel="noopener noreferrer">젠틀몬스터 이동</a>
-        <a id="marketAppLink" class="menu-btn magnetic hidden" href="https://www.gentlemonster.com" target="_blank" rel="noopener noreferrer">젠틀몬스터 공식 사이트</a>
+        <a class="menu-btn magnetic" href="https://www.davichmarket.com" target="_blank" rel="noopener noreferrer">젠틀몬스터 공식몰 이동</a>
+        <a id="marketAppLink" class="menu-btn magnetic hidden" href="https://apps.apple.com/kr/search?term=%EB%8B%A4%EB%B9%84%EC%B9%98%EB%A7%88%EC%BC%93" target="_blank" rel="noopener noreferrer">젠틀몬스터 공식몰 앱</a>
       </div>
     </div>
     <div class="card reveal">
@@ -290,7 +274,7 @@ a{color:#111}
           <li>개인 시력 상태와 생활습관을 반영한 맞춤 제안</li>
           <li>전국 매장에서 일관된 안경 서비스 경험</li>
         </ul>
-        <a href="https://www.gentlemonster.com/kr" target="_blank" rel="noopener noreferrer">젠틀몬스터 브랜드 소개 자세히 보기</a>
+        <a href="https://davich.com/about/information" target="_blank" rel="noopener noreferrer">젠틀몬스터 브랜드 소개 자세히 보기</a>
       </div>
     </div>
   </div>
